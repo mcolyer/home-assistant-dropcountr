@@ -121,16 +121,22 @@ class DropCountrSensor(
         """Initialize the sensor."""
         super().__init__(*args, **kwargs)
 
-        # Set custom entity_id
+        # Set custom entity_id using the key for clarity
         self.entity_id = (
             f"sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
         )
 
-        # Set the name from translation key
-        self._attr_name = (
-            self.entity_description.name
-            or self.entity_description.key.replace("_", " ").title()
-        )
+        # Use concise names from translation strings
+        name_mapping = {
+            "total_gallons": "Daily Total",
+            "irrigation_gallons": "Daily Irrigation", 
+            "irrigation_events": "Irrigation Events",
+            "daily_total": "Daily Usage",
+            "weekly_total": "Weekly Total",
+            "monthly_total": "Monthly Total"
+        }
+        self._attr_name = name_mapping.get(self.entity_description.key, 
+                                         self.entity_description.key.replace("_", " ").title())
 
     def _get_latest_usage_data(self) -> UsageData | None:
         """Get the latest usage data for this service connection."""

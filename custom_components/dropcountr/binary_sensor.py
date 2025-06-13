@@ -75,14 +75,16 @@ class DropCountrBinarySensor(
         """Initialize the binary sensor."""
         super().__init__(*args, **kwargs)
 
-        # Set custom entity_id
+        # Set custom entity_id using the key for clarity
         self.entity_id = f"binary_sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
 
-        # Set the name from translation key
-        self._attr_name = (
-            self.entity_description.name
-            or self.entity_description.key.replace("_", " ").title()
-        )
+        # Use concise names 
+        name_mapping = {
+            "leak_detected": "Leak Detected",
+            "connection_status": "Connection Status"
+        }
+        self._attr_name = name_mapping.get(self.entity_description.key, 
+                                         self.entity_description.key.replace("_", " ").title())
 
     @property
     def is_on(self) -> bool:
