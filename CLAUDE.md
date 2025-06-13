@@ -22,18 +22,43 @@ This is a Home Assistant custom component for DropCountr water monitoring servic
 ## Key Components
 
 - `coordinator.py` - Data update coordinators for usage data from service connections
-- `config_flow.py` - Simple email/password configuration flow for user setup
+- `config_flow.py` - Simple email/password configuration flow for user setup with enhanced validation
 - `entity.py` - Base entity classes for DropCountr service connections
 - `sensor.py` - Water usage sensors (total gallons, irrigation gallons, events, daily/weekly totals)
 - `binary_sensor.py` - Leak detection and connection status sensors
-- `services.yaml` - Service definitions for list_usage service
+- `services.yaml` - Service definitions for all available services
 
 ## Data Model
 
 DropCountr integration works with:
 - **Service Connections**: Water meter connections associated with a user account
 - **Usage Data**: Daily water usage data including total gallons, irrigation gallons, irrigation events, and leak detection status
-- **Authentication**: Simple email/password login (no OAuth2 required)
+- **Authentication**: Simple email/password login with enhanced validation using `is_logged_in()` check
+
+## PyDropCountr API Coverage
+
+The integration utilizes all major PyDropCountr APIs:
+
+### Authentication APIs
+- ✅ `login(email, password)` - Used for initial authentication
+- ✅ `logout()` - Used during integration unload
+- ✅ `is_logged_in()` - Used for authentication verification in setup and config flow
+
+### Service Connection APIs  
+- ✅ `list_service_connections()` - Used by coordinator and config flow validation
+- ✅ `get_service_connection(service_id)` - Available via `get_service_connection` service
+
+### Usage Data APIs
+- ✅ `get_usage(service_connection_id, start_date, end_date, period='day')` - Used by coordinator for daily data
+- ✅ `get_usage(..., period='hour')` - Available via `get_hourly_usage` service for granular data
+
+## Available Services
+
+The integration provides three Home Assistant services:
+
+1. **list_usage** - Returns cached daily usage data for all service connections
+2. **get_service_connection** - Retrieves detailed information for a specific service connection
+3. **get_hourly_usage** - Fetches hourly granularity usage data with optional date range
 
 ## Development Environment
 

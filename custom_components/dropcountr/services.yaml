@@ -5,3 +5,41 @@ list_usage:
       selector:
         config_entry:
           integration: dropcountr
+
+get_service_connection:
+  fields:
+    config_entry:
+      required: true
+      selector:
+        config_entry:
+          integration: dropcountr
+    service_connection_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+get_hourly_usage:
+  fields:
+    config_entry:
+      required: true
+      selector:
+        config_entry:
+          integration: dropcountr
+    service_connection_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    start_date:
+      required: false
+      selector:
+        text:
+          placeholder: "2025-06-13T00:00:00Z"
+    end_date:
+      required: false
+      selector:
+        text:
+          placeholder: "2025-06-14T00:00:00Z"

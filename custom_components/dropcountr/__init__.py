@@ -29,10 +29,33 @@ from .coordinator import (
 )
 
 SERVICE_LIST_USAGE = "list_usage"
+SERVICE_GET_SERVICE_CONNECTION = "get_service_connection"
+SERVICE_GET_HOURLY_USAGE = "get_hourly_usage"
+
 CONF_CONFIG_ENTRY = "config_entry"
+CONF_SERVICE_CONNECTION_ID = "service_connection_id"
+CONF_START_DATE = "start_date"
+CONF_END_DATE = "end_date"
+
 LIST_USAGE_SERVICE_SCHEMA = vol.All(
     {
         vol.Required(CONF_CONFIG_ENTRY): ConfigEntrySelector({"integration": DOMAIN}),
+    },
+)
+
+GET_SERVICE_CONNECTION_SCHEMA = vol.All(
+    {
+        vol.Required(CONF_CONFIG_ENTRY): ConfigEntrySelector({"integration": DOMAIN}),
+        vol.Required(CONF_SERVICE_CONNECTION_ID): int,
+    },
+)
+
+GET_HOURLY_USAGE_SCHEMA = vol.All(
+    {
+        vol.Required(CONF_CONFIG_ENTRY): ConfigEntrySelector({"integration": DOMAIN}),
+        vol.Required(CONF_SERVICE_CONNECTION_ID): int,
+        vol.Optional(CONF_START_DATE): str,
+        vol.Optional(CONF_END_DATE): str,
     },
 )
 
@@ -48,6 +71,11 @@ def _setup_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -> DropCount
         client = DropCountrClient()
         if not client.login(username, password):
             raise ConfigEntryAuthFailed("Login failed")
+        
+        # Verify authentication status
+        if not client.is_logged_in():
+            raise ConfigEntryAuthFailed("Authentication verification failed")
+            
         return client
     except RequestException as ex:
         raise ConfigEntryNotReady from ex
@@ -98,10 +126,93 @@ def setup_service(hass: HomeAssistant) -> None:
             "usage_data": entry.runtime_data.usage_coordinator.usage_data  # type: ignore[dict-item]
         }
 
+    async def get_service_connection(call: ServiceCall) -> ServiceResponse:
+        """Return details for a specific service connection."""
+        entry_id: str = call.data[CONF_CONFIG_ENTRY]
+        service_connection_id: int = call.data[CONF_SERVICE_CONNECTION_ID]
+        
+        entry: DropCountrConfigEntry | None = hass.config_entries.async_get_entry(
+            entry_id
+        )
+        if not entry:
+            raise ValueError(f"Invalid config entry: {entry_id}")
+        if not entry.state == ConfigEntryState.LOADED:
+            raise ValueError(f"Config entry not loaded: {entry_id}")
+        
+        try:
+            service_connection = await hass.async_add_executor_job(
+                entry.runtime_data.client.get_service_connection, service_connection_id
+            )
+            return {"service_connection": service_connection.model_dump() if service_connection else None}
+        except Exception as ex:
+            raise ValueError(f"Error getting service connection {service_connection_id}: {ex}") from ex
+
+    async def get_hourly_usage(call: ServiceCall) -> ServiceResponse:
+        """Return hourly usage data for a specific service connection."""
+        from datetime import datetime, timedelta
+        
+        entry_id: str = call.data[CONF_CONFIG_ENTRY]
+        service_connection_id: int = call.data[CONF_SERVICE_CONNECTION_ID]
+        start_date = call.data.get(CONF_START_DATE)
+        end_date = call.data.get(CONF_END_DATE)
+        
+        entry: DropCountrConfigEntry | None = hass.config_entries.async_get_entry(
+            entry_id
+        )
+        if not entry:
+            raise ValueError(f"Invalid config entry: {entry_id}")
+        if not entry.state == ConfigEntryState.LOADED:
+            raise ValueError(f"Config entry not loaded: {entry_id}")
+        
+        # Default to last 24 hours if no dates provided
+        if not start_date or not end_date:
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=1)
+        else:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError as ex:
+                raise ValueError(f"Invalid date format. Use ISO format: {ex}") from ex
+        
+        try:
+            usage_response = await hass.async_add_executor_job(
+                entry.runtime_data.client.get_usage,
+                service_connection_id,
+                start_dt,
+                end_dt,
+                "hour"  # Use hourly granularity
+            )
+            return {
+                "usage_data": usage_response.model_dump() if usage_response else None,
+                "start_date": start_dt.isoformat(),
+                "end_date": end_dt.isoformat(),
+                "granularity": "hour"
+            }
+        except Exception as ex:
+            raise ValueError(f"Error getting hourly usage for service {service_connection_id}: {ex}") from ex
+
+    # Register all services
     hass.services.async_register(
         DOMAIN,
         SERVICE_LIST_USAGE,
         list_usage,
         schema=LIST_USAGE_SERVICE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_SERVICE_CONNECTION,
+        get_service_connection,
+        schema=GET_SERVICE_CONNECTION_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_HOURLY_USAGE,
+        get_hourly_usage,
+        schema=GET_HOURLY_USAGE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )

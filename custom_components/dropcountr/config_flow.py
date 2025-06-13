@@ -36,6 +36,10 @@ def _validate_input(hass: HomeAssistant, data: dict[str, Any]) -> DropCountrClie
     if not client.login(data[CONF_USERNAME], data[CONF_PASSWORD]):
         raise InvalidAuth("Login failed")
 
+    # Verify authentication status
+    if not client.is_logged_in():
+        raise InvalidAuth("Authentication verification failed")
+
     # Verify we can get service connections
     service_connections = client.list_service_connections()
     if service_connections is None:

@@ -64,6 +64,42 @@
           "description": "The DropCountr config entry for which to return usage data."
         }
       }
+    },
+    "get_service_connection": {
+      "name": "Get service connection details",
+      "description": "Returns detailed information for a specific service connection.",
+      "fields": {
+        "config_entry": {
+          "name": "DropCountr",
+          "description": "The DropCountr config entry to use."
+        },
+        "service_connection_id": {
+          "name": "Service Connection ID",
+          "description": "The ID of the service connection to retrieve details for."
+        }
+      }
+    },
+    "get_hourly_usage": {
+      "name": "Get hourly usage data",
+      "description": "Returns hourly water usage data for a specific service connection.",
+      "fields": {
+        "config_entry": {
+          "name": "DropCountr",
+          "description": "The DropCountr config entry to use."
+        },
+        "service_connection_id": {
+          "name": "Service Connection ID",
+          "description": "The ID of the service connection to retrieve hourly data for."
+        },
+        "start_date": {
+          "name": "Start Date",
+          "description": "Start date in ISO format (optional, defaults to 24 hours ago)."
+        },
+        "end_date": {
+          "name": "End Date",
+          "description": "End date in ISO format (optional, defaults to now)."
+        }
+      }
     }
   }
 }

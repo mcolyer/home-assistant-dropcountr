@@ -60,8 +60,10 @@ def bypass_get_data_fixture():
     )
     
     with patch("pydropcountr.DropCountrClient.login", return_value=True), \
+         patch("pydropcountr.DropCountrClient.is_logged_in", return_value=True), \
          patch("pydropcountr.DropCountrClient.list_service_connections", return_value=[mock_service_connection]), \
          patch("pydropcountr.DropCountrClient.get_usage", return_value=mock_usage_response), \
+         patch("pydropcountr.DropCountrClient.get_service_connection", return_value=mock_service_connection), \
          patch("pydropcountr.DropCountrClient.logout"):
         yield
 
