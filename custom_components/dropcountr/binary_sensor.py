@@ -11,10 +11,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import (
-    DropCountrConfigEntry,
-    DropCountrUsageDataUpdateCoordinator,
-)
+from .coordinator import DropCountrConfigEntry, DropCountrUsageDataUpdateCoordinator
 from .entity import DropCountrEntity
 
 DROPCOUNTR_BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
@@ -73,6 +70,19 @@ class DropCountrBinarySensor(
     DropCountrEntity[DropCountrUsageDataUpdateCoordinator], BinarySensorEntity
 ):
     """Binary sensor for DropCountr."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the binary sensor."""
+        super().__init__(*args, **kwargs)
+
+        # Set custom entity_id
+        self.entity_id = f"binary_sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
+
+        # Set the name from translation key
+        self._attr_name = (
+            self.entity_description.name
+            or self.entity_description.key.replace("_", " ").title()
+        )
 
     @property
     def is_on(self) -> bool:

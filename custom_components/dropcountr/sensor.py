@@ -1,14 +1,9 @@
 """Sensor for displaying usage data from DropCountr."""
 
-from datetime import datetime, date
+from datetime import date
 from typing import Any
 
 from pydropcountr import UsageData
-
-
-def _get_current_date() -> date:
-    """Get current date - helper function for easier testing."""
-    return date.today()
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -23,6 +18,12 @@ from homeassistant.helpers.typing import StateType
 
 from .coordinator import DropCountrConfigEntry, DropCountrUsageDataUpdateCoordinator
 from .entity import DropCountrEntity
+
+
+def _get_current_date() -> date:
+    """Get current date - helper function for easier testing."""
+    return date.today()
+
 
 DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
@@ -116,6 +117,21 @@ class DropCountrSensor(
 ):
     """Representation of the DropCountr sensor."""
 
+    def __init__(self, *args, **kwargs):
+        """Initialize the sensor."""
+        super().__init__(*args, **kwargs)
+
+        # Set custom entity_id
+        self.entity_id = (
+            f"sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
+        )
+
+        # Set the name from translation key
+        self._attr_name = (
+            self.entity_description.name
+            or self.entity_description.key.replace("_", " ").title()
+        )
+
     def _get_latest_usage_data(self) -> UsageData | None:
         """Get the latest usage data for this service connection."""
         if not self.coordinator.data:
@@ -166,7 +182,7 @@ class DropCountrSensor(
         monthly_data = []
         for data in usage_response.usage_data:
             # Use the start_date property which is already a datetime object
-            if hasattr(data, 'start_date') and data.start_date:
+            if hasattr(data, "start_date") and data.start_date:
                 data_date = data.start_date.date()
                 if data_date >= month_start:
                     monthly_data.append(data)

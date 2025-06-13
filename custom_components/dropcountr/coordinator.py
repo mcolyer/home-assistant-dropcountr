@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 from datetime import datetime, timedelta
+
 from pydropcountr import DropCountrClient, ServiceConnection, UsageResponse
 
 from homeassistant.config_entries import ConfigEntry
@@ -14,8 +14,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     _LOGGER,
     DOMAIN,
-    USAGE_SCAN_INTERVAL,
     SERVICE_CONNECTION_SCAN_INTERVAL,
+    USAGE_SCAN_INTERVAL,
 )
 
 

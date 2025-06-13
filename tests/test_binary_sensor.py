@@ -1,10 +1,10 @@
 """Test DropCountr binary sensor platform."""
 
 import pytest
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.dropcountr.const import DOMAIN
+from homeassistant.core import HomeAssistant
 
 from .const import MOCK_CONFIG
 
@@ -17,12 +17,16 @@ async def test_binary_sensors(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    # Test leak detection sensor (moisture device class)
-    leak_detected = hass.states.get("binary_sensor.dropcountr_test_service_connection_moisture")
+    # Test leak detection sensor
+    leak_detected = hass.states.get(
+        "binary_sensor.test_service_connection_leak_detected"
+    )
     assert leak_detected is not None
     assert leak_detected.state == "off"  # Mock data shows no leak
 
-    # Test connection status sensor (connectivity device class)
-    connection_status = hass.states.get("binary_sensor.dropcountr_test_service_connection_connectivity")
+    # Test connection status sensor
+    connection_status = hass.states.get(
+        "binary_sensor.test_service_connection_connection_status"
+    )
     assert connection_status is not None
     assert connection_status.state == "on"  # Should be on since we have data

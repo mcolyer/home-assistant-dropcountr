@@ -11,10 +11,7 @@ from requests.exceptions import RequestException
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
-)
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
@@ -56,7 +53,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         client = await hass.async_add_executor_job(_validate_input, hass, data)
         # Clean up the client after validation
-        if hasattr(client, 'logout'):
+        if hasattr(client, "logout"):
             client.logout()
     except RequestException as err:
         raise CannotConnect from err

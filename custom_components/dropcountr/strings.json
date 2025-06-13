@@ -30,30 +30,30 @@
   "entity": {
     "binary_sensor": {
       "leak_detected": {
-        "name": "Leak detected"
+        "name": "Leak Detection Status"
       },
       "connection_status": {
-        "name": "Connection status"
+        "name": "Service Connection Status"
       }
     },
     "sensor": {
       "total_gallons": {
-        "name": "Total gallons"
+        "name": "Latest Daily Total Usage"
       },
       "irrigation_gallons": {
-        "name": "Irrigation gallons"
+        "name": "Latest Daily Irrigation Usage"
       },
       "irrigation_events": {
-        "name": "Irrigation events"
+        "name": "Latest Daily Irrigation Events"
       },
       "daily_total": {
-        "name": "Daily total"
+        "name": "Most Recent Day Usage"
       },
       "weekly_total": {
-        "name": "Weekly total"
+        "name": "Last 7 Days Total Usage"
       },
       "monthly_total": {
-        "name": "Monthly total"
+        "name": "Current Month Total Usage"
       }
     }
   },

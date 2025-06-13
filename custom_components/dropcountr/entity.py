@@ -20,7 +20,7 @@ class DropCountrEntity[
     """Base entity class."""
 
     _attr_attribution = "Data provided by DropCountr API"
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
 
     def __init__(
         self,
@@ -37,12 +37,23 @@ class DropCountrEntity[
 
         self._attr_unique_id = f"{description.key}_{service_connection_id}"
 
+        # Store clean names for entity generation
+        safe_name = service_connection_name.lower().replace(" ", "_").replace("-", "_")
+
+        # Store service connection name for sensor naming
+        self.safe_service_connection_name = safe_name
+
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(service_connection_id))},
             manufacturer="DropCountr",
             model="Water Meter",
-            name=f"DropCountr {service_connection_name}",
+            name=f"DropCountr {service_connection_name} ({service_connection_address})"
+            if service_connection_address
+            else f"DropCountr {service_connection_name}",
             configuration_url="https://dropcountr.com",
+            suggested_area=service_connection_address.split(",")[0]
+            if service_connection_address
+            else None,
         )
 
         # Store additional service connection info
