@@ -1,0 +1,32 @@
+[project]
+name = "home-assistant-dropcountr"
+version = "0.1.0"
+description = "Home Assistant integration for DropCountr water monitoring"
+authors = [
+    {name = "Matt Colyer", email = "matt@colyer.name"}
+]
+requires-python = ">= 3.13"
+dependencies = [
+    "async-timeout>4.0.3",
+    "homeassistant==2025.6.0",
+    "pydropcountr==0.1.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "colorlog",
+    "pytest-homeassistant-custom-component",
+    "ruff==0.11.13",
+    "uv>0.4.15",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["custom_components"]

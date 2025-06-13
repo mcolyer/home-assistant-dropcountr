@@ -10,5 +10,6 @@ rm -rf .venv
 # Create virtual environment with specific Python version
 uv venv --python 3.13.3
 
-# Install requirements
+# Install requirements and dev dependencies
 uv pip install --requirement requirements.txt
+uv pip install -e ".[dev]"

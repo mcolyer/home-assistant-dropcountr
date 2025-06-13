@@ -1,6 +1,7 @@
 {
   "domain": "dropcountr",
   "name": "DropCountr",
+  "version": "0.1.0",
   "codeowners": ["@mcolyer"],
   "config_flow": true,
   "documentation": "https://github.com/mcolyer/pydropcountr",

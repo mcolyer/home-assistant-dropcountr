@@ -68,11 +68,11 @@ async def async_setup_entry(
     """Set up the DropCountr sensor."""
 
     dropcountr_domain_data = config_entry.runtime_data
-    client = dropcountr_domain_data.client
+    coordinator = dropcountr_domain_data.usage_coordinator
 
     # Get service connections
     service_connections = await hass.async_add_executor_job(
-        client.list_service_connections
+        dropcountr_domain_data.client.list_service_connections
     )
 
     if not service_connections:
@@ -81,12 +81,6 @@ async def async_setup_entry(
     entities: list[DropCountrSensor] = []
 
     for service_connection in service_connections:
-        coordinator = DropCountrUsageDataUpdateCoordinator(
-            hass=hass,
-            config_entry=config_entry,
-            client=client,
-        )
-
         entities.extend(
             [
                 DropCountrSensor(
