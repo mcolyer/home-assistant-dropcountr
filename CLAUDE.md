@@ -16,7 +16,7 @@ This is a Home Assistant custom component for DropCountr water monitoring servic
 - **Domain**: `dropcountr` (defined in const.py and manifest.json)
 - **Platforms**: Binary sensor and sensor platforms
 - **Authentication**: Uses PyDropCountr library with simple email/password login via config_flow.py
-- **Data Coordination**: DropCountrUsageDataUpdateCoordinator handles API polling with reasonable intervals (15 minutes for usage data)
+- **Data Coordination**: DropCountrUsageDataUpdateCoordinator handles API polling with reasonable intervals (daily for usage data)
 - **Configuration**: Config entry-based setup with email/password credentials
 
 ## Key Components
@@ -80,3 +80,4 @@ The integration includes a comprehensive test suite using pytest with Home Assis
 - **Entity Naming**: Home Assistant generates entity IDs using device_class (e.g., "moisture", "connectivity") rather than the entity key
 - **Manifest Requirements**: HA 2025.6.0+ requires a "version" field in manifest.json
 - **Python Version**: Uses Python 3.13.3 managed by uv for compatibility with latest HA versions
+- **Polling Strategy**: Usage data updates daily (not real-time), so coordinator polls once per day to reduce API load while maintaining data freshness

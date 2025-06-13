@@ -17,7 +17,8 @@ PLATFORMS = [
 DEFAULT_NAME = "DropCountr Sensor"
 
 # DropCountr API - reasonable polling intervals
-USAGE_SCAN_INTERVAL = timedelta(minutes=15)
+# Usage data typically updates once daily, so check once per day
+USAGE_SCAN_INTERVAL = timedelta(days=1)
 SERVICE_CONNECTION_SCAN_INTERVAL = timedelta(hours=1)
 
 _LOGGER = logging.getLogger(__package__)
