@@ -80,8 +80,7 @@ The integration creates the following sensors for each service connection:
 ### Water Usage Sensors
 | Sensor | Description | Unit | Device Class |
 |--------|-------------|------|--------------|
-| **Total Gallons** | Latest daily total water usage | Gallons | Water |
-| **Irrigation Gallons** | Latest daily irrigation usage | Gallons | Water |
+| **Daily Irrigation** | Latest daily irrigation usage | Gallons | Water |
 | **Irrigation Events** | Number of irrigation events | Count | - |
 | **Daily Total** | Most recent day's usage | Gallons | Water |
 | **Weekly Total** | Last 7 days total usage | Gallons | Water |

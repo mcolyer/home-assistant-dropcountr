@@ -18,10 +18,6 @@ async def test_sensors(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     # Test that sensors are created with key-based entity IDs
-    total_gallons = hass.states.get("sensor.test_service_connection_total_gallons")
-    assert total_gallons is not None
-    assert total_gallons.state == "455.3850376152"  # 120.3 gallons in liters
-
     irrigation_gallons = hass.states.get(
         "sensor.test_service_connection_irrigation_gallons"
     )

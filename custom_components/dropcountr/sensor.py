@@ -27,14 +27,6 @@ def _get_current_date() -> date:
 
 DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
-        key="total_gallons",
-        translation_key="total_gallons",
-        suggested_display_precision=2,
-        native_unit_of_measurement=UnitOfVolume.GALLONS,
-        device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-    ),
-    SensorEntityDescription(
         key="irrigation_gallons",
         translation_key="irrigation_gallons",
         suggested_display_precision=2,
@@ -128,15 +120,16 @@ class DropCountrSensor(
 
         # Use concise names from translation strings
         name_mapping = {
-            "total_gallons": "Daily Total",
-            "irrigation_gallons": "Daily Irrigation", 
+            "irrigation_gallons": "Daily Irrigation",
             "irrigation_events": "Irrigation Events",
-            "daily_total": "Daily Usage",
+            "daily_total": "Daily Total",
             "weekly_total": "Weekly Total",
-            "monthly_total": "Monthly Total"
+            "monthly_total": "Monthly Total",
         }
-        self._attr_name = name_mapping.get(self.entity_description.key, 
-                                         self.entity_description.key.replace("_", " ").title())
+        self._attr_name = name_mapping.get(
+            self.entity_description.key,
+            self.entity_description.key.replace("_", " ").title(),
+        )
 
     def _get_latest_usage_data(self) -> UsageData | None:
         """Get the latest usage data for this service connection."""
@@ -208,9 +201,7 @@ class DropCountrSensor(
         if not latest_data:
             return None
 
-        if sensor_key == "total_gallons":
-            return latest_data.total_gallons
-        elif sensor_key == "irrigation_gallons":
+        if sensor_key == "irrigation_gallons":
             return latest_data.irrigation_gallons
         elif sensor_key == "irrigation_events":
             return latest_data.irrigation_events

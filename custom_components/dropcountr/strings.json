@@ -37,9 +37,6 @@
       }
     },
     "sensor": {
-      "total_gallons": {
-        "name": "Daily Total"
-      },
       "irrigation_gallons": {
         "name": "Daily Irrigation"
       },
@@ -47,7 +44,7 @@
         "name": "Irrigation Events"
       },
       "daily_total": {
-        "name": "Daily Usage"
+        "name": "Daily Total"
       },
       "weekly_total": {
         "name": "Weekly Total"
