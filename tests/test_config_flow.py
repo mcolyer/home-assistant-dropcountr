@@ -7,7 +7,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
-from custom_components.dropcountr.config_flow import CannotConnect, InvalidAuth
+from custom_components.dropcountr.config_flow import CannotConnect, InvalidAuth, UnknownError
 from custom_components.dropcountr.const import DOMAIN
 
 from .const import MOCK_CONFIG
@@ -32,7 +32,7 @@ async def test_form(hass: HomeAssistant) -> None:
     assert result["errors"] == {}
 
     with patch(
-        "custom_components.dropcountr.config_flow._validate_input",
+        "custom_components.dropcountr.config_flow.validate_input",
         return_value={"title": "DropCountr"},
     ), patch(
         "custom_components.dropcountr.async_setup_entry",
@@ -56,7 +56,7 @@ async def test_form_invalid_auth(hass: HomeAssistant) -> None:
     )
 
     with patch(
-        "custom_components.dropcountr.config_flow._validate_input",
+        "custom_components.dropcountr.config_flow.validate_input",
         side_effect=InvalidAuth,
     ):
         result2 = await hass.config_entries.flow.async_configure(
@@ -75,7 +75,7 @@ async def test_form_cannot_connect(hass: HomeAssistant) -> None:
     )
 
     with patch(
-        "custom_components.dropcountr.config_flow._validate_input",
+        "custom_components.dropcountr.config_flow.validate_input",
         side_effect=CannotConnect,
     ):
         result2 = await hass.config_entries.flow.async_configure(
@@ -94,8 +94,8 @@ async def test_form_unknown_error(hass: HomeAssistant) -> None:
     )
 
     with patch(
-        "custom_components.dropcountr.config_flow._validate_input",
-        side_effect=Exception,
+        "custom_components.dropcountr.config_flow.validate_input",
+        side_effect=UnknownError,
     ):
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -110,7 +110,11 @@ async def test_reauth_flow(hass: HomeAssistant) -> None:
     """Test reauth flow."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
     
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG)
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, 
+        data=MOCK_CONFIG, 
+        unique_id=MOCK_CONFIG["username"]
+    )
     config_entry.add_to_hass(hass)
 
     result = await hass.config_entries.flow.async_init(

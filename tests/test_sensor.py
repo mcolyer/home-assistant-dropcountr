@@ -17,23 +17,23 @@ async def test_sensors(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    # Test that sensors are created
-    total_gallons = hass.states.get("sensor.dropcountr_test_service_connection_total_gallons")
+    # Test that sensors are created with device class-based entity IDs
+    total_gallons = hass.states.get("sensor.dropcountr_test_service_connection_water")
     assert total_gallons is not None
-    assert total_gallons.state == "120.3"  # Most recent usage data
+    assert total_gallons.state == "455.3850376152"  # 120.3 gallons in liters
 
-    irrigation_gallons = hass.states.get("sensor.dropcountr_test_service_connection_irrigation_gallons")
+    irrigation_gallons = hass.states.get("sensor.dropcountr_test_service_connection_water_2")
     assert irrigation_gallons is not None
-    assert irrigation_gallons.state == "50.1"
+    assert irrigation_gallons.state == "189.6491303784"  # 50.1 gallons in liters
 
-    irrigation_events = hass.states.get("sensor.dropcountr_test_service_connection_irrigation_events")
+    irrigation_events = hass.states.get("sensor.dropcountr_test_service_connection_none")
     assert irrigation_events is not None
     assert irrigation_events.state == "2.0"
 
-    daily_total = hass.states.get("sensor.dropcountr_test_service_connection_daily_total")
+    daily_total = hass.states.get("sensor.dropcountr_test_service_connection_water_3")
     assert daily_total is not None
-    assert daily_total.state == "120.3"  # Latest day total
+    assert daily_total.state == "455.3850376152"  # Latest day total in liters
 
-    weekly_total = hass.states.get("sensor.dropcountr_test_service_connection_weekly_total")
+    weekly_total = hass.states.get("sensor.dropcountr_test_service_connection_water_4")
     assert weekly_total is not None
-    assert weekly_total.state == "270.8"  # Sum of both days
+    assert weekly_total.state == "1025.0895111072"  # Sum of both days in liters

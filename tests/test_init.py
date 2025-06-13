@@ -21,8 +21,10 @@ async def test_setup_entry(hass: HomeAssistant):
     assert await hass.config_entries.async_setup(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.LOADED
     
-    # Ensure that the component is loaded
-    assert DOMAIN in hass.data
+    # Ensure that the runtime data is available
+    assert config_entry.runtime_data is not None
+    assert config_entry.runtime_data.client is not None
+    assert config_entry.runtime_data.usage_coordinator is not None
     
     # Test unload
     assert await hass.config_entries.async_unload(config_entry.entry_id)

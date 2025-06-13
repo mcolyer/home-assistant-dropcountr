@@ -52,14 +52,15 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         client = await hass.async_add_executor_job(_validate_input, hass, data)
         # Clean up the client after validation
-        client.logout()
+        if hasattr(client, 'logout'):
+            client.logout()
     except RequestException as err:
         raise CannotConnect from err
     except InvalidAuth:
         raise
     except Exception as err:
-        _LOGGER.exception("Auth exception")
-        raise InvalidAuth from err
+        _LOGGER.exception("Unexpected error during validation")
+        raise UnknownError from err
 
     # Return info that you want to store in the config entry.
     return {"title": data[CONF_USERNAME]}
@@ -90,6 +91,8 @@ class DropCountrConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
                 errors[CONF_PASSWORD] = "invalid_auth"
+            except UnknownError:
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user", data_schema=DATA_SCHEMA, errors=errors
@@ -117,6 +120,8 @@ class DropCountrConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
                 errors[CONF_PASSWORD] = "invalid_auth"
+            except UnknownError:
+                errors["base"] = "unknown"
             else:
                 self.hass.config_entries.async_update_entry(
                     existing_entry, data=new_data
@@ -144,3 +149,7 @@ class CannotConnect(HomeAssistantError):
 
 class InvalidAuth(HomeAssistantError):
     """Error to indicate there is invalid auth."""
+
+
+class UnknownError(HomeAssistantError):
+    """Error to indicate unknown error occurred."""
