@@ -18,15 +18,11 @@ async def test_binary_sensors(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     # Test leak detection sensor
-    leak_detected = hass.states.get(
-        "binary_sensor.test_service_connection_leak_detected"
-    )
+    leak_detected = hass.states.get("binary_sensor.leak_detected")
     assert leak_detected is not None
     assert leak_detected.state == "off"  # Mock data shows no leak
 
     # Test connection status sensor
-    connection_status = hass.states.get(
-        "binary_sensor.test_service_connection_connection_status"
-    )
+    connection_status = hass.states.get("binary_sensor.connection_status")
     assert connection_status is not None
     assert connection_status.state == "on"  # Should be on since we have data

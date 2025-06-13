@@ -75,9 +75,6 @@ class DropCountrBinarySensor(
         """Initialize the binary sensor."""
         super().__init__(*args, **kwargs)
 
-        # Set custom entity_id using the key for clarity
-        self.entity_id = f"binary_sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
-
         # Use concise names
         name_mapping = {
             "leak_detected": "Leak Detected",

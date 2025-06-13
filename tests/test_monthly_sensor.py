@@ -27,7 +27,7 @@ async def test_monthly_sensor_june_2025(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
         # Test monthly total sensor
-        monthly_total = hass.states.get("sensor.test_service_connection_monthly_total")
+        monthly_total = hass.states.get("sensor.monthly_total")
         assert monthly_total is not None
 
         # Expected June 2025 total: 100.0 + 150.5 + 120.3 = 370.8 gallons
@@ -55,7 +55,7 @@ async def test_monthly_sensor_different_month(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
         # Test monthly total sensor - should be 0 since no July data
-        monthly_total = hass.states.get("sensor.test_service_connection_monthly_total")
+        monthly_total = hass.states.get("sensor.monthly_total")
         assert monthly_total is not None
         assert monthly_total.state == "0.0"
 
@@ -75,7 +75,7 @@ async def test_monthly_sensor_may_2025(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
         # Test monthly total sensor
-        monthly_total = hass.states.get("sensor.test_service_connection_monthly_total")
+        monthly_total = hass.states.get("sensor.monthly_total")
         assert monthly_total is not None
 
         # Expected May 2025 total: 200.0 + 180.0 = 380.0 gallons

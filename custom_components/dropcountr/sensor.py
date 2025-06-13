@@ -113,11 +113,6 @@ class DropCountrSensor(
         """Initialize the sensor."""
         super().__init__(*args, **kwargs)
 
-        # Set custom entity_id using the key for clarity
-        self.entity_id = (
-            f"sensor.{self.safe_service_connection_name}_{self.entity_description.key}"
-        )
-
         # Use concise names from translation strings
         name_mapping = {
             "irrigation_gallons": "Daily Irrigation",

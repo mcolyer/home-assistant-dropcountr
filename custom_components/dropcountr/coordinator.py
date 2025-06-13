@@ -103,8 +103,10 @@ class DropCountrUsageDataUpdateCoordinator(
             # This ensures we get full month data plus some history for weekly totals
             month_start = datetime(end_date.year, end_date.month, 1)
             start_date = min(month_start, end_date - timedelta(days=45))
-            
-            _LOGGER.debug(f"Requesting usage data for service {service_connection_id} from {start_date.date()} to {end_date.date()}")
+
+            _LOGGER.debug(
+                f"Requesting usage data for service {service_connection_id} from {start_date.date()} to {end_date.date()}"
+            )
 
             return self.client.get_usage(
                 service_connection_id=service_connection_id,
