@@ -6,5 +6,5 @@
   "documentation": "https://github.com/mcolyer/pydropcountr",
   "iot_class": "cloud_polling",
   "loggers": ["pydropcountr"],
-  "requirements": ["pydropcountr"]
+  "requirements": ["pydropcountr==0.1.2"]
 }
