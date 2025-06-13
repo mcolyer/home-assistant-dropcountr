@@ -43,13 +43,20 @@ class DropCountrEntity[
         # Store service connection name for sensor naming
         self.safe_service_connection_name = safe_name
 
+        # Create a user-friendly device name
+        if service_connection_address:
+            # Use the first part of the address as a more readable name
+            address_parts = service_connection_address.split(",")
+            location_name = address_parts[0].strip() if address_parts else service_connection_name
+            device_name = f"DropCountr Water Meter ({location_name})"
+        else:
+            device_name = f"DropCountr {service_connection_name}"
+            
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(service_connection_id))},
             manufacturer="DropCountr",
             model="Water Meter",
-            name=f"DropCountr {service_connection_name} ({service_connection_address})"
-            if service_connection_address
-            else f"DropCountr {service_connection_name}",
+            name=device_name,
             configuration_url="https://dropcountr.com",
             suggested_area=service_connection_address.split(",")[0]
             if service_connection_address
