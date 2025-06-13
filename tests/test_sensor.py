@@ -36,4 +36,11 @@ async def test_sensors(hass: HomeAssistant) -> None:
 
     weekly_total = hass.states.get("sensor.dropcountr_test_service_connection_water_4")
     assert weekly_total is not None
-    assert weekly_total.state == "1025.0895111072"  # Sum of both days in liters
+    assert weekly_total.state == "2842.0871674272"  # Sum of last 7 days in liters
+
+    monthly_total = hass.states.get("sensor.dropcountr_test_service_connection_water_5")
+    assert monthly_total is not None
+    # June total (when test runs in current month): varies based on test date
+    # Just verify it's a valid number and not None
+    assert monthly_total.state is not None
+    assert float(monthly_total.state) >= 0

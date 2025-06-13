@@ -1,8 +1,14 @@
 """Sensor for displaying usage data from DropCountr."""
 
+from datetime import datetime, date
 from typing import Any
 
 from pydropcountr import UsageData
+
+
+def _get_current_date() -> date:
+    """Get current date - helper function for easier testing."""
+    return date.today()
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -52,6 +58,14 @@ DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="weekly_total",
         translation_key="weekly_total",
+        suggested_display_precision=2,
+        native_unit_of_measurement=UnitOfVolume.GALLONS,
+        device_class=SensorDeviceClass.WATER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="monthly_total",
+        translation_key="monthly_total",
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
@@ -135,11 +149,39 @@ class DropCountrSensor(
         else:
             return sum(data.total_gallons for data in recent_data)
 
+    def _get_monthly_usage(self) -> float:
+        """Get usage for the current month to date."""
+        if not self.coordinator.data:
+            return 0.0
+
+        usage_response = self.coordinator.data.get(self.service_connection_id)
+        if not usage_response or not usage_response.usage_data:
+            return 0.0
+
+        # Get the start of current month
+        today = _get_current_date()
+        month_start = date(today.year, today.month, 1)
+
+        # Filter usage data for current month
+        monthly_data = []
+        for data in usage_response.usage_data:
+            # Use the start_date property which is already a datetime object
+            if hasattr(data, 'start_date') and data.start_date:
+                data_date = data.start_date.date()
+                if data_date >= month_start:
+                    monthly_data.append(data)
+
+        # For monthly total, always use total gallons (not irrigation specific)
+        return sum(data.total_gallons for data in monthly_data)
+
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         sensor_key = self.entity_description.key
         latest_data = self._get_latest_usage_data()
+
+        if sensor_key == "monthly_total":
+            return self._get_monthly_usage()
 
         if not latest_data:
             return None

@@ -51,6 +51,9 @@
       },
       "weekly_total": {
         "name": "Weekly total"
+      },
+      "monthly_total": {
+        "name": "Monthly total"
       }
     }
   },

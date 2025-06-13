@@ -19,6 +19,29 @@ MOCK_SERVICE_CONNECTION = {
 }
 
 MOCK_USAGE_DATA = [
+    # Previous month data (May 2025) - should not be included in current month totals
+    {
+        "during": "2025-05-30T00:00:00.000Z/2025-05-31T00:00:00.000Z",
+        "total_gallons": 200.0,
+        "irrigation_gallons": 100.0,
+        "irrigation_events": 4.0,
+        "is_leaking": False
+    },
+    {
+        "during": "2025-05-30T00:00:00.000Z/2025-05-31T00:00:00.000Z",
+        "total_gallons": 180.0,
+        "irrigation_gallons": 90.0,
+        "irrigation_events": 3.0,
+        "is_leaking": False
+    },
+    # Current month data (June 2025) - should be included in monthly totals
+    {
+        "during": "2025-06-01T00:00:00.000Z/2025-06-02T00:00:00.000Z",
+        "total_gallons": 100.0,
+        "irrigation_gallons": 40.0,
+        "irrigation_events": 2.0,
+        "is_leaking": False
+    },
     {
         "during": "2025-06-12T00:00:00.000Z/2025-06-13T00:00:00.000Z",
         "total_gallons": 150.5,
@@ -37,7 +60,7 @@ MOCK_USAGE_DATA = [
 
 MOCK_USAGE_RESPONSE = {
     "usage_data": MOCK_USAGE_DATA,
-    "total_items": 2,
+    "total_items": 5,
     "api_id": "https://dropcountr.com/api/service_connections/12345/usage",
     "consumed_via_id": "https://dropcountr.com/api/service_connections/12345"
 }
