@@ -177,38 +177,17 @@ class DropCountrSensor(
         today = _get_current_date()
         month_start = date(today.year, today.month, 1)
 
-        # Debug logging to understand the data
-        from .const import _LOGGER
-        _LOGGER.warning(f"Monthly calculation for service {self.service_connection_id}:")
-        _LOGGER.warning(f"Today: {today}, Month start: {month_start}")
-        _LOGGER.warning(f"Total usage data entries: {len(usage_response.usage_data)}")
-
-        # Check if we have data spanning the full month
-        if usage_response.usage_data:
-            earliest_date = min(data.start_date.date() for data in usage_response.usage_data if hasattr(data, "start_date") and data.start_date)
-            latest_date = max(data.start_date.date() for data in usage_response.usage_data if hasattr(data, "start_date") and data.start_date)
-            _LOGGER.warning(f"Data range: {earliest_date} to {latest_date}")
-
         # Filter usage data for current month
         monthly_data = []
-        total_all_data = 0.0
         for data in usage_response.usage_data:
-            total_all_data += data.total_gallons
             # Use the start_date property which is already a datetime object
             if hasattr(data, "start_date") and data.start_date:
                 data_date = data.start_date.date()
-                _LOGGER.warning(f"Data entry: {data_date}, gallons: {data.total_gallons}, in month: {data_date >= month_start}")
                 if data_date >= month_start:
                     monthly_data.append(data)
 
-        monthly_total = sum(data.total_gallons for data in monthly_data)
-        _LOGGER.warning(f"Monthly data entries: {len(monthly_data)}")
-        _LOGGER.warning(f"Monthly total: {monthly_total} gallons")
-        _LOGGER.warning(f"All data total: {total_all_data} gallons")
-        _LOGGER.warning(f"Website shows: 9,291 gallons vs our calculation: {monthly_total} gallons")
-
         # For monthly total, always use total gallons (not irrigation specific)
-        return monthly_total
+        return sum(data.total_gallons for data in monthly_data)
 
     @property
     def native_value(self) -> StateType:
