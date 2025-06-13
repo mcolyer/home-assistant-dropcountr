@@ -1,15 +1,10 @@
 {
-  "domain": "flume",
-  "name": "Flume",
-  "codeowners": ["@ChrisMandich", "@bdraco", "@jeeftor"],
+  "domain": "dropcountr",
+  "name": "DropCountr",
+  "codeowners": ["@mcolyer"],
   "config_flow": true,
-  "dhcp": [
-    {
-      "hostname": "flume-gw-*"
-    }
-  ],
-  "documentation": "https://www.home-assistant.io/integrations/flume",
+  "documentation": "https://github.com/mcolyer/pydropcountr",
   "iot_class": "cloud_polling",
-  "loggers": ["pyflume"],
-  "requirements": ["PyFlume==0.6.5"]
+  "loggers": ["pydropcountr"],
+  "requirements": ["pydropcountr"]
 }

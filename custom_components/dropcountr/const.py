@@ -1,4 +1,4 @@
-"""The Flume component."""
+"""The DropCountr component."""
 
 from __future__ import annotations
 
@@ -7,39 +7,32 @@ import logging
 
 from homeassistant.const import Platform
 
-DOMAIN = "flume"
+DOMAIN = "dropcountr"
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.SENSOR,
 ]
 
-DEFAULT_NAME = "Flume Sensor"
+DEFAULT_NAME = "DropCountr Sensor"
 
-# Flume API limits queries to 120 per hour
-NOTIFICATION_SCAN_INTERVAL = timedelta(minutes=5)
-DEVICE_SCAN_INTERVAL = timedelta(minutes=1)
-DEVICE_CONNECTION_SCAN_INTERVAL = timedelta(minutes=60)
+# DropCountr API - reasonable polling intervals
+USAGE_SCAN_INTERVAL = timedelta(minutes=15)
+SERVICE_CONNECTION_SCAN_INTERVAL = timedelta(hours=1)
 
 _LOGGER = logging.getLogger(__package__)
 
-FLUME_TYPE_BRIDGE = 1
-FLUME_TYPE_SENSOR = 2
+# Service connection data keys
+KEY_SERVICE_CONNECTION_ID = "id"
+KEY_SERVICE_CONNECTION_NAME = "name"
+KEY_SERVICE_CONNECTION_ADDRESS = "address"
+KEY_SERVICE_CONNECTION_ACCOUNT = "account_number"
+KEY_SERVICE_CONNECTION_STATUS = "status"
+KEY_SERVICE_CONNECTION_METER = "meter_serial"
 
-CONF_TOKEN_FILE = "token_filename"
-BASE_TOKEN_FILENAME = "FLUME_TOKEN_FILE"
-
-
-KEY_DEVICE_TYPE = "type"
-KEY_DEVICE_ID = "id"
-KEY_DEVICE_LOCATION = "location"
-KEY_DEVICE_LOCATION_NAME = "name"
-KEY_DEVICE_LOCATION_TIMEZONE = "tz"
-
-
-NOTIFICATION_HIGH_FLOW = "High Flow Alert"
-NOTIFICATION_BRIDGE_DISCONNECT = "Bridge Disconnection"
-BRIDGE_NOTIFICATION_KEY = "connected"
-BRIDGE_NOTIFICATION_RULE = "Bridge Disconnection"
-NOTIFICATION_LEAK_DETECTED = "Flume Smart Leak Alert"
-NOTIFICATION_LOW_BATTERY = "Low Battery"
+# Usage data keys
+KEY_USAGE_TOTAL_GALLONS = "total_gallons"
+KEY_USAGE_IRRIGATION_GALLONS = "irrigation_gallons"
+KEY_USAGE_IRRIGATION_EVENTS = "irrigation_events"
+KEY_USAGE_IS_LEAKING = "is_leaking"
+KEY_USAGE_DURING = "during"

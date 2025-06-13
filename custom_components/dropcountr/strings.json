@@ -7,18 +7,16 @@
     },
     "step": {
       "user": {
-        "description": "In order to access the Flume Personal API, you will need to request a 'Client ID' and 'Client Secret' at https://portal.flumetech.com/settings#token",
-        "title": "Connect to your Flume account",
+        "description": "Enter your DropCountr account credentials to connect.",
+        "title": "Connect to your DropCountr account",
         "data": {
           "username": "[%key:common::config_flow::data::username%]",
-          "client_secret": "Client Secret",
-          "client_id": "Client ID",
           "password": "[%key:common::config_flow::data::password%]"
         }
       },
       "reauth_confirm": {
         "description": "The password for {username} is no longer valid.",
-        "title": "Reauthenticate your Flume account",
+        "title": "Reauthenticate your DropCountr account",
         "data": {
           "password": "[%key:common::config_flow::data::password%]"
         }
@@ -31,45 +29,39 @@
   },
   "entity": {
     "binary_sensor": {
-      "leak": {
+      "leak_detected": {
         "name": "Leak detected"
       },
-      "flow": {
-        "name": "High flow"
+      "connection_status": {
+        "name": "Connection status"
       }
     },
     "sensor": {
-      "current_interval": {
-        "name": "Current"
+      "total_gallons": {
+        "name": "Total gallons"
       },
-      "month_to_date": {
-        "name": "Current month"
+      "irrigation_gallons": {
+        "name": "Irrigation gallons"
       },
-      "week_to_date": {
-        "name": "Current week"
+      "irrigation_events": {
+        "name": "Irrigation events"
       },
-      "today": {
-        "name": "Current day"
+      "daily_total": {
+        "name": "Daily total"
       },
-      "last_60_min": {
-        "name": "60 minutes"
-      },
-      "last_24_hrs": {
-        "name": "24 hours"
-      },
-      "last_30_days": {
-        "name": "30 days"
+      "weekly_total": {
+        "name": "Weekly total"
       }
     }
   },
   "services": {
-    "list_notifications": {
-      "name": "List notifications",
-      "description": "Returns a list of fetched user notifications.",
+    "list_usage": {
+      "name": "List usage data",
+      "description": "Returns usage data for the service connections.",
       "fields": {
         "config_entry": {
-          "name": "Flume",
-          "description": "The Flume config entry for which to return notifications."
+          "name": "DropCountr",
+          "description": "The DropCountr config entry for which to return usage data."
         }
       }
     }

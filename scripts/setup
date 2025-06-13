@@ -4,4 +4,11 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-python3 -m pip install --requirement requirements.txt
+# Remove existing venv to ensure clean state
+rm -rf .venv
+
+# Create virtual environment with specific Python version
+uv venv --python 3.13.3
+
+# Install requirements
+uv pip install --requirement requirements.txt

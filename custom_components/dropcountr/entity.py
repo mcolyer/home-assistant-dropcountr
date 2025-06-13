@@ -8,49 +8,46 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import (
-    FlumeDeviceConnectionUpdateCoordinator,
-    FlumeDeviceDataUpdateCoordinator,
-    FlumeNotificationDataUpdateCoordinator,
+    DropCountrServiceConnectionDataUpdateCoordinator,
+    DropCountrUsageDataUpdateCoordinator,
 )
 
 
-class FlumeEntity[
-    _FlumeCoordinatorT: FlumeDeviceDataUpdateCoordinator
-    | FlumeDeviceConnectionUpdateCoordinator
-    | FlumeNotificationDataUpdateCoordinator
-](CoordinatorEntity[_FlumeCoordinatorT]):
+class DropCountrEntity[
+    _DropCountrCoordinatorT: DropCountrServiceConnectionDataUpdateCoordinator
+    | DropCountrUsageDataUpdateCoordinator
+](CoordinatorEntity[_DropCountrCoordinatorT]):
     """Base entity class."""
 
-    _attr_attribution = "Data provided by Flume API"
+    _attr_attribution = "Data provided by DropCountr API"
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator: _FlumeCoordinatorT,
+        coordinator: _DropCountrCoordinatorT,
         description: EntityDescription,
-        device_id: str,
-        location_name: str,
-        is_bridge: bool = False,
+        service_connection_id: int,
+        service_connection_name: str,
+        service_connection_address: str,
     ) -> None:
         """Class initializer."""
         super().__init__(coordinator)
         self.entity_description = description
-        self.device_id = device_id
+        self.service_connection_id = service_connection_id
 
-        if is_bridge:
-            name = "Flume Bridge"
-        else:
-            name = "Flume Sensor"
-
-        self._attr_unique_id = f"{description.key}_{device_id}"
+        self._attr_unique_id = f"{description.key}_{service_connection_id}"
 
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            manufacturer="Flume, Inc.",
-            model="Flume Smart Water Monitor",
-            name=f"{name} {location_name}",
-            configuration_url="https://portal.flumewater.com",
+            identifiers={(DOMAIN, str(service_connection_id))},
+            manufacturer="DropCountr",
+            model="Water Meter",
+            name=f"DropCountr {service_connection_name}",
+            configuration_url="https://dropcountr.com",
         )
+
+        # Store additional service connection info
+        self.service_connection_name = service_connection_name
+        self.service_connection_address = service_connection_address
 
     async def async_added_to_hass(self) -> None:
         """Request an update when added."""

@@ -1,9 +1,8 @@
-"""Sensor for displaying the number of result from Flume."""
+"""Sensor for displaying usage data from DropCountr."""
 
 from typing import Any
 
-from pyflume import FlumeAuth, FlumeData
-from requests import Session
+from pydropcountr import UsageData
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -16,148 +15,167 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from .const import (
-    DEVICE_SCAN_INTERVAL,
-    FLUME_TYPE_SENSOR,
-    KEY_DEVICE_ID,
-    KEY_DEVICE_LOCATION,
-    KEY_DEVICE_LOCATION_NAME,
-    KEY_DEVICE_LOCATION_TIMEZONE,
-    KEY_DEVICE_TYPE,
-)
-from .coordinator import FlumeConfigEntry, FlumeDeviceDataUpdateCoordinator
-from .entity import FlumeEntity
-from .util import get_valid_flume_devices
+from .coordinator import DropCountrConfigEntry, DropCountrUsageDataUpdateCoordinator
+from .entity import DropCountrEntity
 
-FLUME_QUERIES_SENSOR: tuple[SensorEntityDescription, ...] = (
+DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
-        key="current_interval",
-        translation_key="current_interval",
-        suggested_display_precision=2,
-        native_unit_of_measurement=f"{UnitOfVolume.GALLONS}/m",
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    SensorEntityDescription(
-        key="month_to_date",
-        translation_key="month_to_date",
+        key="total_gallons",
+        translation_key="total_gallons",
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
-        key="week_to_date",
-        translation_key="week_to_date",
+        key="irrigation_gallons",
+        translation_key="irrigation_gallons",
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
-        key="today",
-        translation_key="today",
-        suggested_display_precision=2,
-        native_unit_of_measurement=UnitOfVolume.GALLONS,
-        device_class=SensorDeviceClass.WATER,
+        key="irrigation_events",
+        translation_key="irrigation_events",
+        suggested_display_precision=0,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
-        key="last_60_min",
-        translation_key="last_60_min",
+        key="daily_total",
+        translation_key="daily_total",
         suggested_display_precision=2,
-        native_unit_of_measurement=f"{UnitOfVolume.GALLONS}/h",
+        native_unit_of_measurement=UnitOfVolume.GALLONS,
+        device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorEntityDescription(
-        key="last_24_hrs",
-        translation_key="last_24_hrs",
+        key="weekly_total",
+        translation_key="weekly_total",
         suggested_display_precision=2,
-        native_unit_of_measurement=f"{UnitOfVolume.GALLONS}/d",
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    SensorEntityDescription(
-        key="last_30_days",
-        translation_key="last_30_days",
-        suggested_display_precision=2,
-        native_unit_of_measurement=f"{UnitOfVolume.GALLONS}/mo",
+        native_unit_of_measurement=UnitOfVolume.GALLONS,
+        device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
 )
-
-
-def make_flume_datas(
-    http_session: Session, flume_auth: FlumeAuth, flume_devices: list[dict[str, Any]]
-) -> dict[str, FlumeData]:
-    """Create FlumeData objects for each device."""
-    flume_datas: dict[str, FlumeData] = {}
-    for device in flume_devices:
-        device_id = device[KEY_DEVICE_ID]
-        device_timezone = device[KEY_DEVICE_LOCATION][KEY_DEVICE_LOCATION_TIMEZONE]
-        flume_data = FlumeData(
-            flume_auth,
-            device_id,
-            device_timezone,
-            scan_interval=DEVICE_SCAN_INTERVAL,
-            update_on_init=False,
-            http_session=http_session,
-        )
-        flume_datas[device_id] = flume_data
-    return flume_datas
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: FlumeConfigEntry,
+    config_entry: DropCountrConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the Flume sensor."""
+    """Set up the DropCountr sensor."""
 
-    flume_domain_data = config_entry.runtime_data
-    flume_devices = flume_domain_data.devices
-    flume_auth = flume_domain_data.auth
-    http_session = flume_domain_data.http_session
-    flume_devices = [
-        device
-        for device in get_valid_flume_devices(flume_devices)
-        if device[KEY_DEVICE_TYPE] == FLUME_TYPE_SENSOR
-    ]
-    flume_entity_list: list[FlumeSensor] = []
-    flume_datas = await hass.async_add_executor_job(
-        make_flume_datas, http_session, flume_auth, flume_devices
+    dropcountr_domain_data = config_entry.runtime_data
+    client = dropcountr_domain_data.client
+
+    # Get service connections
+    service_connections = await hass.async_add_executor_job(
+        client.list_service_connections
     )
 
-    for device in flume_devices:
-        device_id: str = device[KEY_DEVICE_ID]
-        device_location_name = device[KEY_DEVICE_LOCATION][KEY_DEVICE_LOCATION_NAME]
-        flume_device = flume_datas[device_id]
+    if not service_connections:
+        return
 
-        coordinator = FlumeDeviceDataUpdateCoordinator(
-            hass=hass, config_entry=config_entry, flume_device=flume_device
+    entities: list[DropCountrSensor] = []
+
+    for service_connection in service_connections:
+        coordinator = DropCountrUsageDataUpdateCoordinator(
+            hass=hass,
+            config_entry=config_entry,
+            client=client,
         )
 
-        flume_entity_list.extend(
+        entities.extend(
             [
-                FlumeSensor(
+                DropCountrSensor(
                     coordinator=coordinator,
                     description=description,
-                    device_id=device_id,
-                    location_name=device_location_name,
+                    service_connection_id=service_connection.id,
+                    service_connection_name=service_connection.name,
+                    service_connection_address=service_connection.address,
                 )
-                for description in FLUME_QUERIES_SENSOR
+                for description in DROPCOUNTR_SENSORS
             ]
         )
 
-    async_add_entities(flume_entity_list)
+    async_add_entities(entities)
 
 
-class FlumeSensor(FlumeEntity[FlumeDeviceDataUpdateCoordinator], SensorEntity):
-    """Representation of the Flume sensor."""
+class DropCountrSensor(
+    DropCountrEntity[DropCountrUsageDataUpdateCoordinator], SensorEntity
+):
+    """Representation of the DropCountr sensor."""
+
+    def _get_latest_usage_data(self) -> UsageData | None:
+        """Get the latest usage data for this service connection."""
+        if not self.coordinator.data:
+            return None
+
+        usage_response = self.coordinator.data.get(self.service_connection_id)
+        if not usage_response or not usage_response.usage_data:
+            return None
+
+        # Return the most recent usage data
+        return usage_response.usage_data[-1]
+
+    def _get_aggregated_usage(self, days: int) -> float:
+        """Get aggregated usage for the specified number of days."""
+        if not self.coordinator.data:
+            return 0.0
+
+        usage_response = self.coordinator.data.get(self.service_connection_id)
+        if not usage_response or not usage_response.usage_data:
+            return 0.0
+
+        # Sum up the specified number of most recent days
+        recent_data = (
+            usage_response.usage_data[-days:]
+            if days <= len(usage_response.usage_data)
+            else usage_response.usage_data
+        )
+
+        if self.entity_description.key == "irrigation_gallons":
+            return sum(data.irrigation_gallons for data in recent_data)
+        else:
+            return sum(data.total_gallons for data in recent_data)
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         sensor_key = self.entity_description.key
-        if sensor_key not in self.coordinator.flume_device.values:
+        latest_data = self._get_latest_usage_data()
+
+        if not latest_data:
             return None
 
-        return self.coordinator.flume_device.values[sensor_key]
+        if sensor_key == "total_gallons":
+            return latest_data.total_gallons
+        elif sensor_key == "irrigation_gallons":
+            return latest_data.irrigation_gallons
+        elif sensor_key == "irrigation_events":
+            return latest_data.irrigation_events
+        elif sensor_key == "daily_total":
+            return self._get_aggregated_usage(1)
+        elif sensor_key == "weekly_total":
+            return self._get_aggregated_usage(7)
+
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the state attributes."""
+        latest_data = self._get_latest_usage_data()
+
+        if not latest_data:
+            return None
+
+        return {
+            "service_connection_id": self.service_connection_id,
+            "service_connection_name": self.service_connection_name,
+            "service_connection_address": self.service_connection_address,
+            "period_start": latest_data.start_date.isoformat() if latest_data else None,
+            "period_end": latest_data.end_date.isoformat() if latest_data else None,
+            "is_leaking": latest_data.is_leaking if latest_data else None,
+        }

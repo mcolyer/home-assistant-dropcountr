@@ -1,7 +1,7 @@
-list_notifications:
+list_usage:
   fields:
     config_entry:
       required: true
       selector:
         config_entry:
-          integration: flume
+          integration: dropcountr

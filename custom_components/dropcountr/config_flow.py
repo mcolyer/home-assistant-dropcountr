@@ -1,96 +1,77 @@
-"""Config flow for flume integration."""
+"""Config flow for dropcountr integration."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
-import os
 from typing import Any
 
-from pyflume import FlumeAuth, FlumeDeviceList
+from pydropcountr import DropCountrClient
 from requests.exceptions import RequestException
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import (
-    CONF_CLIENT_ID,
-    CONF_CLIENT_SECRET,
     CONF_PASSWORD,
     CONF_USERNAME,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import BASE_TOKEN_FILENAME, DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# If flume ever implements a login page for oauth
-# we can use the oauth2 support built into Home Assistant.
-#
-# Currently they only implement the token endpoint
-#
 DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_USERNAME): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Required(CONF_CLIENT_ID): str,
-        vol.Required(CONF_CLIENT_SECRET): str,
     }
 )
 
 
-def _validate_input(
-    hass: HomeAssistant, data: dict[str, Any], clear_token_file: bool
-) -> FlumeDeviceList:
+def _validate_input(hass: HomeAssistant, data: dict[str, Any]) -> DropCountrClient:
     """Validate in the executor."""
-    flume_token_full_path = hass.config.path(
-        f"{BASE_TOKEN_FILENAME}-{data[CONF_USERNAME]}"
-    )
-    if clear_token_file and os.path.exists(flume_token_full_path):
-        os.unlink(flume_token_full_path)
+    client = DropCountrClient()
+    if not client.login(data[CONF_USERNAME], data[CONF_PASSWORD]):
+        raise InvalidAuth("Login failed")
 
-    return FlumeDeviceList(
-        FlumeAuth(
-            data[CONF_USERNAME],
-            data[CONF_PASSWORD],
-            data[CONF_CLIENT_ID],
-            data[CONF_CLIENT_SECRET],
-            flume_token_file=flume_token_full_path,
-        )
-    )
+    # Verify we can get service connections
+    service_connections = client.list_service_connections()
+    if service_connections is None:
+        raise CannotConnect("Failed to get service connections")
+
+    return client
 
 
-async def validate_input(
-    hass: HomeAssistant, data: dict[str, Any], clear_token_file: bool = False
-) -> dict[str, Any]:
+async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from DATA_SCHEMA with values provided by the user.
     """
     try:
-        flume_devices = await hass.async_add_executor_job(
-            _validate_input, hass, data, clear_token_file
-        )
+        client = await hass.async_add_executor_job(_validate_input, hass, data)
+        # Clean up the client after validation
+        client.logout()
     except RequestException as err:
         raise CannotConnect from err
+    except InvalidAuth:
+        raise
     except Exception as err:
         _LOGGER.exception("Auth exception")
         raise InvalidAuth from err
-    if not flume_devices or not flume_devices.device_list:
-        raise CannotConnect
 
     # Return info that you want to store in the config entry.
     return {"title": data[CONF_USERNAME]}
 
 
-class FlumeConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for flume."""
+class DropCountrConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for dropcountr."""
 
     VERSION = 1
 
     def __init__(self) -> None:
-        """Init flume config flow."""
+        """Init dropcountr config flow."""
         self._reauth_unique_id: str | None = None
 
     async def async_step_user(
@@ -131,7 +112,7 @@ class FlumeConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             new_data = {**existing_entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]}
             try:
-                await validate_input(self.hass, new_data, clear_token_file=True)
+                await validate_input(self.hass, new_data)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidAuth:
