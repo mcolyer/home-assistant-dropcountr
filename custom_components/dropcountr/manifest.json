@@ -1,9 +1,9 @@
 {
   "domain": "dropcountr",
   "name": "DropCountr",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@mcolyer"],
   "config_flow": true,
-  "after_dependencies": ["recorder"],
   "documentation": "https://github.com/mcolyer/pydropcountr",
   "iot_class": "cloud_polling",
   "loggers": ["pydropcountr"],
