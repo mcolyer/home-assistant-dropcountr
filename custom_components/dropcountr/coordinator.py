@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydropcountr import DropCountrClient, ServiceConnection, UsageData, UsageResponse
@@ -272,9 +272,12 @@ class DropCountrUsageDataUpdateCoordinator(
                 from datetime import datetime
 
                 if isinstance(last_time, (int, float)):
-                    last_time_dt = datetime.fromtimestamp(last_time)
+                    last_time_dt = datetime.fromtimestamp(last_time, tz=UTC)
                 else:
                     last_time_dt = last_time
+                    # Ensure it has timezone info
+                    if last_time_dt.tzinfo is None:
+                        last_time_dt = last_time_dt.replace(tzinfo=UTC)
 
                 _LOGGER.debug(
                     f"Continuing {metric_type} statistics from {last_time_dt}, sum={existing_sum}"
@@ -284,6 +287,10 @@ class DropCountrUsageDataUpdateCoordinator(
                 oldest_historical_date = min(
                     usage_data.start_date for usage_data in historical_data
                 )
+                # Ensure both datetimes have timezone info for comparison
+                if oldest_historical_date.tzinfo is None:
+                    oldest_historical_date = oldest_historical_date.replace(tzinfo=UTC)
+
                 if last_time_dt > oldest_historical_date:
                     _LOGGER.warning(
                         f"Last processed time ({last_time_dt}) is newer than historical data ({oldest_historical_date}). "
