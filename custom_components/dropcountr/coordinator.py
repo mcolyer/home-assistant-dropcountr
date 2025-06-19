@@ -190,6 +190,21 @@ class DropCountrUsageDataUpdateCoordinator(
     ) -> None:
         """Insert historical usage data as external statistics."""
         if not historical_data:
+            _LOGGER.debug("No historical data to insert")
+            return
+
+        # Check if recorder is available
+        try:
+            recorder_instance = get_instance(self.hass)
+            if not recorder_instance:
+                _LOGGER.warning(
+                    "Recorder instance not available, skipping statistics insertion"
+                )
+                return
+        except Exception as ex:
+            _LOGGER.warning(
+                f"Recorder not available: {ex}, skipping statistics insertion"
+            )
             return
 
         # Get service connection for naming
@@ -202,10 +217,15 @@ class DropCountrUsageDataUpdateCoordinator(
                 None,
             )
             if not service_connection:
+                _LOGGER.error(f"Service connection {service_connection_id} not found")
                 return
         except Exception as ex:
             _LOGGER.error(f"Error getting service connection for statistics: {ex}")
             return
+
+        _LOGGER.info(
+            f"Starting statistics insertion for {len(historical_data)} historical data points"
+        )
 
         # Create statistic IDs and metadata
         id_prefix = f"dropcountr_{service_connection_id}"
@@ -232,17 +252,46 @@ class DropCountrUsageDataUpdateCoordinator(
             statistic_id = config["id"]
 
             # Get the last existing statistic to determine starting point for sums
-            last_stat = await get_instance(self.hass).async_add_executor_job(
-                get_last_statistics, self.hass, 1, statistic_id, True, set()
-            )
+            try:
+                last_stat = await get_instance(self.hass).async_add_executor_job(
+                    get_last_statistics, self.hass, 1, statistic_id, True, set()
+                )
+                _LOGGER.debug(
+                    f"Retrieved last statistics for {statistic_id}: {bool(last_stat)}"
+                )
+            except Exception as ex:
+                _LOGGER.error(f"Failed to get last statistics for {statistic_id}: {ex}")
+                last_stat = {}
 
             if last_stat:
                 # Continue from where we left off
                 existing_sum = last_stat[statistic_id][0].get("sum", 0.0)
                 last_time = last_stat[statistic_id][0]["start"]
+
+                # Convert last_time to datetime for easier comparison
+                from datetime import datetime
+
+                if isinstance(last_time, (int, float)):
+                    last_time_dt = datetime.fromtimestamp(last_time)
+                else:
+                    last_time_dt = last_time
+
                 _LOGGER.debug(
-                    f"Continuing {metric_type} statistics from {last_time}, sum={existing_sum}"
+                    f"Continuing {metric_type} statistics from {last_time_dt}, sum={existing_sum}"
                 )
+
+                # Check if the last processed time is in the future (indicating corrupted data)
+                oldest_historical_date = min(
+                    usage_data.start_date for usage_data in historical_data
+                )
+                if last_time_dt > oldest_historical_date:
+                    _LOGGER.warning(
+                        f"Last processed time ({last_time_dt}) is newer than historical data ({oldest_historical_date}). "
+                        f"This may indicate corrupted statistics. Resetting to process historical data."
+                    )
+                    # Reset to allow historical data processing
+                    existing_sum = 0.0
+                    last_time = 0
             else:
                 # Starting fresh
                 existing_sum = 0.0
@@ -296,10 +345,18 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
 
             if statistics:
-                _LOGGER.debug(
-                    f"Adding {len(statistics)} {metric_type} statistics for service {service_connection_id}"
-                )
-                async_add_external_statistics(self.hass, metadata, statistics)
+                try:
+                    _LOGGER.info(
+                        f"Inserting {len(statistics)} {metric_type} statistics for service {service_connection_id}"
+                    )
+                    async_add_external_statistics(self.hass, metadata, statistics)
+                    _LOGGER.info(f"Successfully inserted {metric_type} statistics")
+                except Exception as ex:
+                    _LOGGER.error(
+                        f"Failed to insert {metric_type} statistics: {ex}",
+                        exc_info=True,
+                    )
+                    raise
             else:
                 _LOGGER.debug(f"No new {metric_type} statistics to add")
 
