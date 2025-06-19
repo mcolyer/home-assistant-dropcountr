@@ -36,7 +36,7 @@ async def test_monthly_sensor_june_2025(hass: HomeAssistant) -> None:
 
         # Verify it has the correct attributes
         assert monthly_total.attributes["device_class"] == "water"
-        assert monthly_total.attributes["state_class"] == "measurement"
+        assert monthly_total.attributes["state_class"] == "total_increasing"
         assert monthly_total.attributes["unit_of_measurement"] == "L"
 
 
@@ -84,5 +84,5 @@ async def test_monthly_sensor_may_2025(hass: HomeAssistant) -> None:
 
         # Verify it has the correct attributes
         assert monthly_total.attributes["device_class"] == "water"
-        assert monthly_total.attributes["state_class"] == "measurement"
+        assert monthly_total.attributes["state_class"] == "total_increasing"
         assert monthly_total.attributes["unit_of_measurement"] == "L"
