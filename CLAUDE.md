@@ -79,8 +79,11 @@ The integration includes a comprehensive test suite using pytest with Home Assis
 - **Coordinator Sharing**: Both sensor and binary_sensor platforms use the shared coordinator from `runtime_data` instead of creating new instances
 - **Entity Naming**: Home Assistant generates entity IDs using device_class (e.g., "moisture", "connectivity") rather than the entity key
 - **Manifest Requirements**: HA 2025.6.0+ requires a "version" field in manifest.json
-- **Python Version**: Uses Python 3.13.3 managed by uv for compatibility with latest HA versions
+- **Python Version**: Uses Python 3.13.2+ (required by Home Assistant 2025.6.0) managed by uv for compatibility with latest HA versions
 - **Polling Strategy**: Usage data updates daily (not real-time), so coordinator polls once per day to reduce API load while maintaining data freshness
+- **CI/CD**: GitHub Actions workflows automatically run tests, linting, and Hassfest validation on pull requests
+- **Code Quality**: Ruff linting configured with Home Assistant standards, ignoring overly strict rules (TRY300, TRY301)
+- **Documentation**: CHANGELOG.md tracks all notable changes following Keep a Changelog format
 
 ## Historical Data Reporting
 
@@ -109,3 +112,29 @@ The integration includes smart historical timestamp reporting to handle DropCoun
 - `tests/test_historical_data.py`: Comprehensive test suite covering all scenarios
 
 The implementation maintains full backward compatibility and doesn't affect normal real-time data reporting.
+
+## Project Maintenance
+
+### Changelog Management
+All notable changes are documented in `CHANGELOG.md` following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format:
+- **Added** - New features
+- **Changed** - Changes in existing functionality  
+- **Deprecated** - Soon-to-be removed features
+- **Removed** - Removed features
+- **Fixed** - Bug fixes
+- **Security** - Vulnerability fixes
+
+### Development Workflow
+1. **Feature Development**: Create feature branch from `main`
+2. **Testing**: Ensure all tests pass with `scripts/test`
+3. **Code Quality**: Run `scripts/lint` to ensure code standards
+4. **Documentation**: Update CLAUDE.md and CHANGELOG.md as needed
+5. **Pull Request**: Create PR with detailed description and testing notes
+6. **CI Validation**: GitHub Actions automatically validates code quality and integration standards
+7. **Review & Merge**: Code review and merge to main
+
+### Release Process
+- Update version in `manifest.json` and `pyproject.toml`
+- Move unreleased changes in CHANGELOG.md to new version section
+- Create GitHub release with changelog notes
+- GitHub Actions automatically validates release builds
