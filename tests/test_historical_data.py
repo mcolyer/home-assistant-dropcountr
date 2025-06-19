@@ -277,8 +277,10 @@ async def test_full_update_cycle_with_historical_data(
         client=mock_client,
     )
 
-    # Mock the event firing method
-    with patch.object(coordinator, "_fire_historical_state_events") as mock_fire_events:
+    # Mock the statistics insertion method
+    with patch.object(
+        coordinator, "_insert_historical_statistics"
+    ) as mock_insert_stats:
         # Run update
         result = await coordinator._async_update_data()
 
@@ -286,9 +288,9 @@ async def test_full_update_cycle_with_historical_data(
         assert mock_service_connection.id in result
         assert result[mock_service_connection.id] == usage_response
 
-        # Check that historical events were fired
-        mock_fire_events.assert_called_once()
-        call_args = mock_fire_events.call_args
+        # Check that historical statistics were inserted
+        mock_insert_stats.assert_called_once()
+        call_args = mock_insert_stats.call_args
         assert call_args[0][0] == mock_service_connection.id  # service_connection_id
         historical_data_arg = call_args[0][1]  # historical_data list
         assert len(historical_data_arg) == 1  # Only historical data (3 days old)
@@ -323,15 +325,17 @@ async def test_no_duplicate_events_on_subsequent_updates(
         client=mock_client,
     )
 
-    # Mock the event firing method
-    with patch.object(coordinator, "_fire_historical_state_events") as mock_fire_events:
-        # First update - should fire events
+    # Mock the statistics insertion method
+    with patch.object(
+        coordinator, "_insert_historical_statistics"
+    ) as mock_insert_stats:
+        # First update - should insert statistics
         await coordinator._async_update_data()
-        first_call_count = mock_fire_events.call_count
+        first_call_count = mock_insert_stats.call_count
         assert first_call_count == 1
 
-        # Second update with same data - should not fire additional events
+        # Second update with same data - should not insert additional statistics
         await coordinator._async_update_data()
-        second_call_count = mock_fire_events.call_count
+        second_call_count = mock_insert_stats.call_count
 
         assert second_call_count == 1  # No additional calls
