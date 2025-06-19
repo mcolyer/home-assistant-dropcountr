@@ -289,9 +289,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
                 # Ensure both datetimes have timezone info for comparison
                 if oldest_historical_date.tzinfo is None:
-                    oldest_historical_date = oldest_historical_date.replace(
-                        tzinfo=UTC
-                    )
+                    oldest_historical_date = oldest_historical_date.replace(tzinfo=UTC)
 
                 if last_time_dt > oldest_historical_date:
                     _LOGGER.warning(
