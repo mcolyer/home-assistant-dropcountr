@@ -5,7 +5,7 @@ description = "Home Assistant integration for DropCountr water monitoring"
 authors = [
     {name = "Matt Colyer", email = "matt@colyer.name"}
 ]
-requires-python = ">= 3.13"
+requires-python = ">= 3.13.2"
 dependencies = [
     "async-timeout>4.0.3",
     "homeassistant==2025.6.0",
