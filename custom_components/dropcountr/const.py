@@ -38,3 +38,8 @@ KEY_USAGE_IRRIGATION_GALLONS = "irrigation_gallons"
 KEY_USAGE_IRRIGATION_EVENTS = "irrigation_events"
 KEY_USAGE_IS_LEAKING = "is_leaking"
 KEY_USAGE_DURING = "during"
+
+# Historical data tracking keys
+HISTORICAL_DATA_KEY = "historical_data_state"
+LAST_SEEN_DATES_KEY = "last_seen_dates"
+LAST_UPDATE_KEY = "last_update"
