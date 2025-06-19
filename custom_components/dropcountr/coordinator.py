@@ -22,6 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     _LOGGER,
@@ -320,10 +321,13 @@ class DropCountrUsageDataUpdateCoordinator(
             current_sum = existing_sum
 
             for usage_data in historical_data:
+                # Convert UTC timestamp to Home Assistant's local timezone for consistency
+                local_start_date = dt_util.as_local(usage_data.start_date)
+
                 # Skip data that's already been processed
-                if usage_data.start_date.timestamp() <= last_time:
+                if local_start_date.timestamp() <= last_time:
                     _LOGGER.debug(
-                        f"Skipping already processed data for {metric_type}: {usage_data.start_date}"
+                        f"Skipping already processed data for {metric_type}: {usage_data.start_date} (UTC) -> {local_start_date} (local)"
                     )
                     continue
 
@@ -340,12 +344,12 @@ class DropCountrUsageDataUpdateCoordinator(
                 current_sum += value
 
                 _LOGGER.debug(
-                    f"Creating {metric_type} statistic: date={usage_data.start_date}, value={value}, sum={current_sum}"
+                    f"Creating {metric_type} statistic: date={usage_data.start_date} (UTC) -> {local_start_date} (local), value={value}, sum={current_sum}"
                 )
 
                 statistics.append(
                     StatisticData(
-                        start=usage_data.start_date,
+                        start=local_start_date,
                         state=value,
                         sum=current_sum,
                     )
