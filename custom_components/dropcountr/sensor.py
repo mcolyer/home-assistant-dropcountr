@@ -1,6 +1,6 @@
 """Sensor for displaying usage data from DropCountr."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from pydropcountr import UsageData
@@ -138,6 +138,28 @@ class DropCountrSensor(
         # Return the most recent usage data
         return usage_response.usage_data[-1]
 
+    def _filter_recent_incomplete_data(
+        self, usage_data: list[UsageData]
+    ) -> list[UsageData]:
+        """Filter out today and yesterday data to avoid reporting 0 values for incomplete data.
+
+        These sensors will be properly updated when historical data arrives with accurate timestamps.
+        """
+        if not usage_data:
+            return []
+
+        today = _get_current_date()
+        yesterday = today - timedelta(days=1)
+
+        # Filter out today and yesterday since this data is typically delayed 1-3 days
+        filtered_data = []
+        for data in usage_data:
+            usage_date = data.start_date.date()
+            if usage_date < yesterday:  # Only include data from 2+ days ago
+                filtered_data.append(data)
+
+        return filtered_data
+
     def _get_aggregated_usage(self, days: int) -> float:
         """Get aggregated usage for the specified number of days."""
         if not self.coordinator.data:
@@ -188,24 +210,44 @@ class DropCountrSensor(
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         sensor_key = self.entity_description.key
-        latest_data = self._get_latest_usage_data()
 
         if sensor_key == "monthly_total":
             return self._get_monthly_usage()
 
-        if not latest_data:
-            return None
-
-        if sensor_key == "irrigation_gallons":
-            return latest_data.irrigation_gallons
-        elif sensor_key == "irrigation_events":
-            return latest_data.irrigation_events
-        elif sensor_key == "daily_total":
-            return self._get_aggregated_usage(1)
+        # For daily sensors that will be updated by historical data,
+        # avoid reporting 0 values for today/yesterday
+        if sensor_key in ["irrigation_gallons", "irrigation_events", "daily_total"]:
+            return self._get_latest_non_recent_value(sensor_key)
         elif sensor_key == "weekly_total":
             return self._get_aggregated_usage(7)
 
         return None
+
+    def _get_latest_non_recent_value(self, sensor_key: str) -> StateType:
+        """Get the latest value excluding today/yesterday to avoid 0 values for incomplete data."""
+        if not self.coordinator.data:
+            return None
+
+        usage_response = self.coordinator.data.get(self.service_connection_id)
+        if not usage_response or not usage_response.usage_data:
+            return None
+
+        # Filter out recent incomplete data (today/yesterday)
+        filtered_data = self._filter_recent_incomplete_data(usage_response.usage_data)
+
+        if not filtered_data:
+            return None
+
+        # Get the most recent filtered data
+        latest_data = filtered_data[-1]
+
+        sensor_value_map = {
+            "irrigation_gallons": latest_data.irrigation_gallons,
+            "irrigation_events": latest_data.irrigation_events,
+            "daily_total": latest_data.total_gallons,
+        }
+
+        return sensor_value_map.get(sensor_key)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
