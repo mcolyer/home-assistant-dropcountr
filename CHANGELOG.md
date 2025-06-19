@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot configuration for automated dependency updates
 - Comprehensive .gitignore file for Python development
 
+### Fixed
+- Timezone handling in historical statistics to prevent one-day offset in charts
+- UTC timestamps from DropCountr API now properly converted to Home Assistant's local timezone
+- Statistics data now appears on correct dates in Home Assistant analytics
+
 ### Changed
 - Updated Python requirement from >=3.13 to >=3.13.2 to match Home Assistant 2025.6.0
 - Enhanced data coordinator with historical data processing capabilities
