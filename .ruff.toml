@@ -108,8 +108,6 @@ ignore = [
     "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()
     "SLF001", # Private member accessed
     "TRY003", # Avoid specifying long messages outside the exception class
-    "TRY300", # Consider moving this statement to an `else` block  
-    "TRY301", # Abstract `raise` to an inner function
     "TRY400", # Use logging.exception instead of logging.error
     "UP006", # keep type annotation style as is
     "UP007", # keep type annotation style as is

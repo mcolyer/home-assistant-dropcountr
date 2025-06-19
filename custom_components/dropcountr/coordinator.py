@@ -57,6 +57,10 @@ class DropCountrServiceConnectionDataUpdateCoordinator(
 
         self.client = client
 
+    def _raise_update_failed(self, message: str) -> None:
+        """Raise update failed exception."""
+        raise UpdateFailed(message)
+
     async def _async_update_data(self) -> list[ServiceConnection]:
         """Get the latest service connections from DropCountr."""
         try:
@@ -64,9 +68,9 @@ class DropCountrServiceConnectionDataUpdateCoordinator(
                 self.client.list_service_connections
             )
             if service_connections is None:
-                raise UpdateFailed("Failed to get service connections")
-
-            return service_connections
+                self._raise_update_failed("Failed to get service connections")
+            else:
+                return service_connections
         except Exception as ex:
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
 
@@ -299,6 +303,7 @@ class DropCountrUsageDataUpdateCoordinator(
                     usage_data[service_connection.id] = usage_response
 
             self.usage_data = usage_data
-            return usage_data
         except Exception as ex:
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
+        else:
+            return usage_data

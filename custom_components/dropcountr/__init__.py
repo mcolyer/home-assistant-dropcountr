@@ -57,6 +57,11 @@ GET_HOURLY_USAGE_SCHEMA = vol.All(
 )
 
 
+def _raise_auth_failed(message: str) -> None:
+    """Raise authentication failed exception."""
+    raise ConfigEntryAuthFailed(message)
+
+
 def _setup_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -> DropCountrClient:
     """Config entry set up in executor."""
     config = entry.data
@@ -67,13 +72,12 @@ def _setup_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -> DropCount
     try:
         client = DropCountrClient()
         if not client.login(username, password):
-            raise ConfigEntryAuthFailed("Login failed")
-
-        # Verify authentication status
-        if not client.is_logged_in():
-            raise ConfigEntryAuthFailed("Authentication verification failed")
-
-        return client
+            _raise_auth_failed("Login failed")
+        elif not client.is_logged_in():
+            # Verify authentication status
+            _raise_auth_failed("Authentication verification failed")
+        else:
+            return client
     except RequestException as ex:
         raise ConfigEntryNotReady from ex
     except Exception as ex:
