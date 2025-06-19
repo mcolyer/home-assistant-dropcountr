@@ -172,8 +172,14 @@ class DropCountrUsageDataUpdateCoordinator(
 
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)
-                _LOGGER.debug(
+                _LOGGER.info(
                     f"Detected new historical data for service {service_connection_id}: "
+                    f"{usage_date} ({(current_date - usage_date).days} days old), "
+                    f"total_gallons={usage_data.total_gallons}"
+                )
+            elif is_new_data:
+                _LOGGER.debug(
+                    f"Detected new recent data (not historical) for service {service_connection_id}: "
                     f"{usage_date} ({(current_date - usage_date).days} days old)"
                 )
 
@@ -260,6 +266,9 @@ class DropCountrUsageDataUpdateCoordinator(
             for usage_data in historical_data:
                 # Skip data that's already been processed
                 if usage_data.start_date.timestamp() <= last_time:
+                    _LOGGER.debug(
+                        f"Skipping already processed data for {metric_type}: {usage_data.start_date}"
+                    )
                     continue
 
                 # Get the appropriate value for this metric
@@ -273,6 +282,10 @@ class DropCountrUsageDataUpdateCoordinator(
                     continue
 
                 current_sum += value
+
+                _LOGGER.debug(
+                    f"Creating {metric_type} statistic: date={usage_data.start_date}, value={value}, sum={current_sum}"
+                )
 
                 statistics.append(
                     StatisticData(
@@ -338,9 +351,13 @@ class DropCountrUsageDataUpdateCoordinator(
                             await self._insert_historical_statistics(
                                 service_connection.id, historical_data
                             )
+                            _LOGGER.info(
+                                f"Successfully inserted {len(historical_data)} historical statistics for service {service_connection.id}"
+                            )
                         except Exception as ex:
-                            _LOGGER.warning(
-                                f"Failed to insert historical statistics: {ex}. Continuing with normal operation."
+                            _LOGGER.error(
+                                f"Failed to insert historical statistics: {ex}. Continuing with normal operation.",
+                                exc_info=True,
                             )
 
                     # Update historical state tracking
