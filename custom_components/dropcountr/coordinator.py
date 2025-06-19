@@ -65,6 +65,7 @@ class DropCountrServiceConnectionDataUpdateCoordinator(
             )
             if service_connections is None:
                 raise UpdateFailed("Failed to get service connections")
+
             return service_connections
         except Exception as ex:
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex

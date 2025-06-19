@@ -36,7 +36,7 @@ def mock_service_connection():
 
 @pytest.fixture
 def create_usage_data():
-    """Factory function to create usage data."""
+    """Create usage data for testing."""
 
     def _create_usage_data(
         days_ago: int, total_gallons: float = 100.0, irrigation_gallons: float = 25.0
@@ -58,7 +58,7 @@ def create_usage_data():
 
 @pytest.fixture
 def create_usage_response():
-    """Factory function to create usage response."""
+    """Create usage response for testing."""
 
     def _create_usage_response(usage_data: list[UsageData]):
         return UsageResponse(
