@@ -278,7 +278,7 @@ async def test_full_update_cycle_with_historical_data(
     )
 
     # Mock the event firing method
-    with patch.object(coordinator, "_fire_historical_state_events") as mock_fire_events:
+    with patch.object(coordinator, "_fire_historical_data_events") as mock_fire_events:
         # Run update
         result = await coordinator._async_update_data()
 
@@ -324,7 +324,7 @@ async def test_no_duplicate_events_on_subsequent_updates(
     )
 
     # Mock the event firing method
-    with patch.object(coordinator, "_fire_historical_state_events") as mock_fire_events:
+    with patch.object(coordinator, "_fire_historical_data_events") as mock_fire_events:
         # First update - should fire events
         await coordinator._async_update_data()
         first_call_count = mock_fire_events.call_count

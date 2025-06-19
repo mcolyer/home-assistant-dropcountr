@@ -168,10 +168,10 @@ class DropCountrUsageDataUpdateCoordinator(
 
         return new_historical_data
 
-    async def _fire_historical_state_events(
+    async def _fire_historical_data_events(
         self, service_connection_id: int, historical_data: list[UsageData]
     ) -> None:
-        """Fire state_changed events for historical data with original timestamps."""
+        """Fire custom events for historical data with original timestamps."""
         if not historical_data:
             return
 
@@ -192,62 +192,29 @@ class DropCountrUsageDataUpdateCoordinator(
             )
             return
 
-        # Fire events for each sensor type
-        sensor_types = [
-            "irrigation_gallons",
-            "irrigation_events",
-            "daily_total",
-            "weekly_total",
-            "monthly_total",
-        ]
-
+        # Fire custom events for historical data instead of state_changed events
         for usage_data in historical_data:
-            # Calculate the timestamp for this historical data (end of day)
-            historical_timestamp = usage_data.end_date.isoformat()
+            # Fire a custom dropcountr_historical_data event
+            self.hass.bus.async_fire(
+                "dropcountr_historical_data",
+                {
+                    "service_connection_id": service_connection_id,
+                    "service_connection_name": service_connection.name,
+                    "service_connection_address": service_connection.address,
+                    "usage_date": usage_data.start_date.date().isoformat(),
+                    "period_start": usage_data.start_date.isoformat(),
+                    "period_end": usage_data.end_date.isoformat(),
+                    "irrigation_gallons": usage_data.irrigation_gallons,
+                    "irrigation_events": usage_data.irrigation_events,
+                    "total_gallons": usage_data.total_gallons,
+                    "is_leaking": usage_data.is_leaking,
+                },
+            )
 
-            for sensor_type in sensor_types:
-                # Calculate the appropriate value for this sensor type
-                if sensor_type == "irrigation_gallons":
-                    value = usage_data.irrigation_gallons
-                elif sensor_type == "irrigation_events":
-                    value = usage_data.irrigation_events
-                elif sensor_type == "daily_total":
-                    value = usage_data.total_gallons
-                elif sensor_type in ["weekly_total", "monthly_total"]:
-                    # For aggregated totals, we'll let the normal sensor logic handle these
-                    continue
-                else:
-                    continue
-
-                # Create entity_id - this matches the pattern used in sensor.py
-                entity_id = f"sensor.{service_connection.name.lower().replace(' ', '_')}_{sensor_type}"
-
-                # Fire the state_changed event with historical timestamp
-                self.hass.bus.async_fire(
-                    "state_changed",
-                    {
-                        "entity_id": entity_id,
-                        "new_state": {
-                            "entity_id": entity_id,
-                            "state": str(value),
-                            "last_updated": historical_timestamp,
-                            "attributes": {
-                                "service_connection_id": service_connection_id,
-                                "service_connection_name": service_connection.name,
-                                "service_connection_address": service_connection.address,
-                                "period_start": usage_data.start_date.isoformat(),
-                                "period_end": usage_data.end_date.isoformat(),
-                                "is_leaking": usage_data.is_leaking,
-                                "historical_data": True,
-                            },
-                        },
-                    },
-                )
-
-                _LOGGER.debug(
-                    f"Fired historical state event for {entity_id}: "
-                    f"value={value}, timestamp={historical_timestamp}"
-                )
+            _LOGGER.debug(
+                f"Fired historical data event for service {service_connection_id}: "
+                f"date={usage_data.start_date.date()}, total={usage_data.total_gallons} gallons"
+            )
 
     def _update_historical_state(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -293,7 +260,7 @@ class DropCountrUsageDataUpdateCoordinator(
                         service_connection.id, usage_response
                     )
                     if historical_data:
-                        await self._fire_historical_state_events(
+                        await self._fire_historical_data_events(
                             service_connection.id, historical_data
                         )
 

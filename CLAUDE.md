@@ -102,7 +102,7 @@ The integration includes smart historical timestamp reporting to handle DropCoun
 1. **State Tracking**: Maintains a set of previously seen usage dates per service connection
 2. **New Data Detection**: Compares current API response with tracked dates to identify new entries
 3. **Historical Filtering**: Only processes data older than 1 day as "historical"
-4. **Event Firing**: Fires `state_changed` events with original timestamps for historical data
+4. **Event Firing**: Fires custom `dropcountr_historical_data` events with original timestamps for historical data
 5. **State Update**: Updates tracking state with all current dates
 
 ### Implementation
