@@ -81,3 +81,31 @@ The integration includes a comprehensive test suite using pytest with Home Assis
 - **Manifest Requirements**: HA 2025.6.0+ requires a "version" field in manifest.json
 - **Python Version**: Uses Python 3.13.3 managed by uv for compatibility with latest HA versions
 - **Polling Strategy**: Usage data updates daily (not real-time), so coordinator polls once per day to reduce API load while maintaining data freshness
+
+## Historical Data Reporting
+
+The integration includes smart historical timestamp reporting to handle DropCountr's delayed data reporting (typically 1-3 days).
+
+### Key Features
+
+- **Automatic Detection**: Identifies newly arrived historical data during daily polling
+- **Accurate Timestamps**: Fires `state_changed` events with original historical timestamps
+- **Deduplication**: Prevents duplicate reporting of the same historical data
+- **Memory Management**: Automatically cleans up tracking data older than 60 days
+- **Zero Configuration**: Works automatically without user intervention
+
+### Algorithm
+
+1. **State Tracking**: Maintains a set of previously seen usage dates per service connection
+2. **New Data Detection**: Compares current API response with tracked dates to identify new entries
+3. **Historical Filtering**: Only processes data older than 1 day as "historical"
+4. **Event Firing**: Fires `state_changed` events with original timestamps for historical data
+5. **State Update**: Updates tracking state with all current dates
+
+### Implementation
+
+- `coordinator.py`: Core historical data processing logic
+- `const.py`: Historical data tracking constants
+- `tests/test_historical_data.py`: Comprehensive test suite covering all scenarios
+
+The implementation maintains full backward compatibility and doesn't affect normal real-time data reporting.
