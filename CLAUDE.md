@@ -124,6 +124,72 @@ Statistics are created for three metrics per service connection:
 
 The implementation gracefully handles failures (falls back to normal operation if statistics insertion fails).
 
+## Home Assistant Development Best Practices
+
+Based on development experience with this integration, here are key learnings for Home Assistant custom components:
+
+### Statistics System Integration
+
+**When to use Home Assistant's statistics system:**
+- For historical data that needs to persist across restarts
+- When you want data to appear in HA's built-in analytics/graphs
+- For cumulative tracking with proper sum calculations
+- When integrating utility-type data (energy, water, gas usage)
+
+**Implementation patterns:**
+- Use `async_add_external_statistics()` with proper `StatisticData` and `StatisticMetaData`
+- Always include graceful error handling for statistics failures
+- Declare `recorder` in `after_dependencies` in manifest.json
+- Mock statistics calls in tests to avoid database dependencies
+
+### Sensor State Classes
+
+**Critical requirement:** Water sensors with `device_class="water"` MUST use:
+- `state_class=SensorStateClass.TOTAL_INCREASING` (for cumulative totals)
+- `state_class=SensorStateClass.TOTAL` (for resetting totals)
+- **Never** `state_class=SensorStateClass.MEASUREMENT` (causes validation errors)
+
+### Event Handling Patterns
+
+**Avoid manual state_changed events:**
+- Never manually fire `state_changed` events - they require specific structure (`old_state`/`new_state`)
+- Use custom events for notifications: `hass.bus.async_fire("custom_event_name", data)`
+- For historical data, prefer statistics system over events
+
+### Testing Considerations
+
+**Essential test patterns:**
+- Mock all external dependencies in `conftest.py` 
+- Use `bypass_get_data` fixture pattern for API mocking
+- Mock database/recorder calls for statistics testing
+- Always test state class validation in sensor tests
+
+### Manifest Dependencies
+
+**Dependency declaration rules:**
+- Use `dependencies` for hard requirements (integration fails without them)
+- Use `after_dependencies` for soft requirements (integration works without them)
+- Always declare component usage to avoid validation errors
+- Example: `"after_dependencies": ["recorder"]` for statistics usage
+
+### Error Handling Philosophy
+
+**Graceful degradation pattern:**
+- Wrap advanced features (like statistics) in try-catch blocks
+- Log warnings but continue normal operation on failures
+- Ensure core functionality (sensors/entities) always works
+- Use this pattern for optional integrations with HA subsystems
+
+### Code Quality Standards
+
+**Home Assistant validation requirements:**
+- All sensor state classes must match device classes
+- All component dependencies must be declared
+- Use proper typing and async patterns
+- Follow HA's entity naming conventions
+
+These patterns ensure robust integrations that work reliably in diverse Home Assistant environments.
+
 ## Project Maintenance
 
 ### Changelog Management
