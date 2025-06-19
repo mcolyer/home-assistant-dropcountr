@@ -102,16 +102,27 @@ The integration includes smart historical timestamp reporting to handle DropCoun
 1. **State Tracking**: Maintains a set of previously seen usage dates per service connection
 2. **New Data Detection**: Compares current API response with tracked dates to identify new entries
 3. **Historical Filtering**: Only processes data older than 1 day as "historical"
-4. **Event Firing**: Fires custom `dropcountr_historical_data` events with original timestamps for historical data
+4. **Statistics Insertion**: Inserts historical usage data as external statistics using Home Assistant's statistics system
 5. **State Update**: Updates tracking state with all current dates
 
 ### Implementation
 
-- `coordinator.py`: Core historical data processing logic
+- `coordinator.py`: Core historical data processing logic using `async_add_external_statistics`
 - `const.py`: Historical data tracking constants
 - `tests/test_historical_data.py`: Comprehensive test suite covering all scenarios
 
-The implementation maintains full backward compatibility and doesn't affect normal real-time data reporting.
+The implementation uses Home Assistant's external statistics system to store historical water usage data. This allows the data to:
+- Persist across integration restarts
+- Be displayed in Home Assistant's statistics graphs
+- Maintain cumulative sums for long-term tracking
+- Integrate with Home Assistant's analytics capabilities
+
+Statistics are created for three metrics per service connection:
+- **Total Water Usage**: Daily total gallons consumed
+- **Irrigation Water Usage**: Daily irrigation gallons consumed  
+- **Irrigation Events**: Daily count of irrigation events
+
+The implementation gracefully handles failures (falls back to normal operation if statistics insertion fails).
 
 ## Project Maintenance
 

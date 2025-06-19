@@ -75,6 +75,15 @@ def bypass_get_data_fixture():
             return_value=mock_service_connection,
         ),
         patch("pydropcountr.DropCountrClient.logout"),
+        # Mock statistics-related calls to avoid database dependencies in tests
+        patch("homeassistant.components.recorder.get_instance"),
+        patch(
+            "homeassistant.components.recorder.statistics.get_last_statistics",
+            return_value={},
+        ),
+        patch(
+            "homeassistant.components.recorder.statistics.async_add_external_statistics"
+        ),
     ):
         yield
 

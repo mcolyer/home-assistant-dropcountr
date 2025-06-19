@@ -8,7 +8,18 @@ from typing import Any
 
 from pydropcountr import DropCountrClient, ServiceConnection, UsageData, UsageResponse
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.models import (
+    StatisticData,
+    StatisticMeanType,
+    StatisticMetaData,
+)
+from homeassistant.components.recorder.statistics import (
+    async_add_external_statistics,
+    get_last_statistics,
+)
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -168,14 +179,14 @@ class DropCountrUsageDataUpdateCoordinator(
 
         return new_historical_data
 
-    async def _fire_historical_data_events(
+    async def _insert_historical_statistics(
         self, service_connection_id: int, historical_data: list[UsageData]
     ) -> None:
-        """Fire custom events for historical data with original timestamps."""
+        """Insert historical usage data as external statistics."""
         if not historical_data:
             return
 
-        # Get service connection name for entity naming
+        # Get service connection for naming
         try:
             service_connections = await self.hass.async_add_executor_job(
                 self.client.list_service_connections
@@ -187,34 +198,97 @@ class DropCountrUsageDataUpdateCoordinator(
             if not service_connection:
                 return
         except Exception as ex:
-            _LOGGER.error(
-                f"Error getting service connection for historical events: {ex}"
-            )
+            _LOGGER.error(f"Error getting service connection for statistics: {ex}")
             return
 
-        # Fire custom events for historical data instead of state_changed events
-        for usage_data in historical_data:
-            # Fire a custom dropcountr_historical_data event
-            self.hass.bus.async_fire(
-                "dropcountr_historical_data",
-                {
-                    "service_connection_id": service_connection_id,
-                    "service_connection_name": service_connection.name,
-                    "service_connection_address": service_connection.address,
-                    "usage_date": usage_data.start_date.date().isoformat(),
-                    "period_start": usage_data.start_date.isoformat(),
-                    "period_end": usage_data.end_date.isoformat(),
-                    "irrigation_gallons": usage_data.irrigation_gallons,
-                    "irrigation_events": usage_data.irrigation_events,
-                    "total_gallons": usage_data.total_gallons,
-                    "is_leaking": usage_data.is_leaking,
-                },
+        # Create statistic IDs and metadata
+        id_prefix = f"dropcountr_{service_connection_id}"
+        statistics_config = {
+            "total_gallons": {
+                "id": f"{DOMAIN}:{id_prefix}_total_gallons",
+                "name": f"DropCountr {service_connection.name} Total Water Usage",
+                "unit": UnitOfVolume.GALLONS,
+            },
+            "irrigation_gallons": {
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons",
+                "name": f"DropCountr {service_connection.name} Irrigation Water Usage",
+                "unit": UnitOfVolume.GALLONS,
+            },
+            "irrigation_events": {
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_events",
+                "name": f"DropCountr {service_connection.name} Irrigation Events",
+                "unit": None,
+            },
+        }
+
+        # Process each metric type
+        for metric_type, config in statistics_config.items():
+            statistic_id = config["id"]
+
+            # Get the last existing statistic to determine starting point for sums
+            last_stat = await get_instance(self.hass).async_add_executor_job(
+                get_last_statistics, self.hass, 1, statistic_id, True, set()
             )
 
-            _LOGGER.debug(
-                f"Fired historical data event for service {service_connection_id}: "
-                f"date={usage_data.start_date.date()}, total={usage_data.total_gallons} gallons"
+            if last_stat:
+                # Continue from where we left off
+                existing_sum = last_stat[statistic_id][0].get("sum", 0.0)
+                last_time = last_stat[statistic_id][0]["start"]
+                _LOGGER.debug(
+                    f"Continuing {metric_type} statistics from {last_time}, sum={existing_sum}"
+                )
+            else:
+                # Starting fresh
+                existing_sum = 0.0
+                last_time = 0
+                _LOGGER.debug(f"Starting {metric_type} statistics from scratch")
+
+            # Create metadata
+            metadata = StatisticMetaData(
+                mean_type=StatisticMeanType.NONE,
+                has_sum=True,
+                name=config["name"],
+                source=DOMAIN,
+                statistic_id=statistic_id,
+                unit_of_measurement=config["unit"],
             )
+
+            # Create statistics data
+            statistics = []
+            current_sum = existing_sum
+
+            for usage_data in historical_data:
+                # Skip data that's already been processed
+                if usage_data.start_date.timestamp() <= last_time:
+                    continue
+
+                # Get the appropriate value for this metric
+                if metric_type == "total_gallons":
+                    value = usage_data.total_gallons
+                elif metric_type == "irrigation_gallons":
+                    value = usage_data.irrigation_gallons
+                elif metric_type == "irrigation_events":
+                    value = usage_data.irrigation_events
+                else:
+                    continue
+
+                current_sum += value
+
+                statistics.append(
+                    StatisticData(
+                        start=usage_data.start_date,
+                        state=value,
+                        sum=current_sum,
+                    )
+                )
+
+            if statistics:
+                _LOGGER.debug(
+                    f"Adding {len(statistics)} {metric_type} statistics for service {service_connection_id}"
+                )
+                async_add_external_statistics(self.hass, metadata, statistics)
+            else:
+                _LOGGER.debug(f"No new {metric_type} statistics to add")
 
     def _update_historical_state(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -260,9 +334,14 @@ class DropCountrUsageDataUpdateCoordinator(
                         service_connection.id, usage_response
                     )
                     if historical_data:
-                        await self._fire_historical_data_events(
-                            service_connection.id, historical_data
-                        )
+                        try:
+                            await self._insert_historical_statistics(
+                                service_connection.id, historical_data
+                            )
+                        except Exception as ex:
+                            _LOGGER.warning(
+                                f"Failed to insert historical statistics: {ex}. Continuing with normal operation."
+                            )
 
                     # Update historical state tracking
                     self._update_historical_state(service_connection.id, usage_response)
