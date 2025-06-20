@@ -119,10 +119,10 @@ class DropCountrUsageDataUpdateCoordinator(
         """Get usage data for a specific service connection."""
         try:
             # Get usage from the start of current month to ensure monthly totals are accurate
-            end_date = datetime.now()
+            end_date = datetime.now(UTC)
             # Start from the beginning of the current month, or 45 days ago, whichever is earlier
             # This ensures we get full month data plus some history for weekly totals
-            month_start = datetime(end_date.year, end_date.month, 1)
+            month_start = datetime(end_date.year, end_date.month, 1, tzinfo=UTC)
             start_date = min(month_start, end_date - timedelta(days=45))
 
             _LOGGER.debug(
