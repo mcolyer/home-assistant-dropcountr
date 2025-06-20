@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from pydropcountr import DropCountrClient
 from requests.exceptions import RequestException
@@ -174,7 +174,7 @@ def setup_service(hass: HomeAssistant) -> None:
 
         # Default to last 24 hours if no dates provided
         if not start_date or not end_date:
-            end_dt = datetime.now()
+            end_dt = datetime.now(UTC)
             start_dt = end_dt - timedelta(days=1)
         else:
             try:
