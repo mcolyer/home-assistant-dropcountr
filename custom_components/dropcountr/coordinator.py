@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import threading
 import time
 from typing import Any
 
@@ -125,6 +127,97 @@ class DropCountrUsageDataUpdateCoordinator(
         self.client = client
         self.usage_data: dict[int, UsageResponse] = {}
         self._historical_state: dict[int, dict[str, Any]] = {}
+        self._cached_service_connections: list[ServiceConnection] | None = None
+        self._service_connections_cache_time: datetime | None = None
+        self._cache_duration = timedelta(
+            minutes=5
+        )  # Cache service connections for 5 minutes
+        self._statistics_inserted_this_session: dict[
+            int, set[str]
+        ] = {}  # Track what we've inserted per service
+        self._cache_lock = threading.Lock()  # Thread-safe cache access
+        self._state_lock = threading.Lock()  # Thread-safe shared state access
+
+    def _raise_cache_failure(self, message: str) -> None:
+        """Raise cache failure exception."""
+        raise UpdateFailed(message)
+
+    async def _get_cached_service_connections(self) -> list[ServiceConnection]:
+        """Get service connections from cache or fetch fresh if cache is expired."""
+        now = datetime.now()
+
+        # Thread-safe cache check
+        with self._cache_lock:
+            # Check if cache is valid
+            if (
+                self._cached_service_connections is not None
+                and self._service_connections_cache_time is not None
+                and now - self._service_connections_cache_time < self._cache_duration
+            ):
+                _LOGGER.debug(
+                    f"Using cached service connections ({len(self._cached_service_connections)} connections)"
+                )
+                return (
+                    self._cached_service_connections.copy()
+                )  # Return copy to prevent mutations
+
+            # Check if someone else is already fetching (avoid duplicate API calls)
+            cache_expired = (
+                self._cached_service_connections is None
+                or self._service_connections_cache_time is None
+                or now - self._service_connections_cache_time >= self._cache_duration
+            )
+
+        if not cache_expired:
+            # Another thread updated the cache while we were waiting
+            with self._cache_lock:
+                if self._cached_service_connections is not None:
+                    return self._cached_service_connections.copy()
+
+        # Cache expired or not set, fetch fresh data
+        _LOGGER.debug("Fetching fresh service connections (cache expired or not set)")
+        start_time = time.time()
+        try:
+            service_connections = await self.hass.async_add_executor_job(
+                self.client.list_service_connections
+            )
+            elapsed = time.time() - start_time
+
+            if service_connections is None:
+                _LOGGER.warning(
+                    f"API call to list_service_connections failed (took {elapsed:.2f}s)"
+                )
+                # Return cached data if available, even if expired
+                with self._cache_lock:
+                    if self._cached_service_connections is not None:
+                        _LOGGER.info(
+                            "Returning expired cached service connections due to API failure"
+                        )
+                        return self._cached_service_connections.copy()
+                self._raise_cache_failure("Failed to get service connections")
+            else:
+                # Thread-safe cache update
+                with self._cache_lock:
+                    self._cached_service_connections = service_connections
+                    self._service_connections_cache_time = now
+                _LOGGER.debug(
+                    f"Cached {len(service_connections)} service connections in {elapsed:.2f}s"
+                )
+                return service_connections
+
+        except Exception as ex:
+            elapsed = time.time() - start_time
+            _LOGGER.error(
+                f"API call to list_service_connections failed after {elapsed:.2f}s: {ex}"
+            )
+            # Return cached data if available, even if expired
+            with self._cache_lock:
+                if self._cached_service_connections is not None:
+                    _LOGGER.info(
+                        "Returning expired cached service connections due to API error"
+                    )
+                    return self._cached_service_connections.copy()
+            raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
 
     def _get_usage_for_service(
         self, service_connection_id: int
@@ -139,43 +232,70 @@ class DropCountrUsageDataUpdateCoordinator(
             month_start = datetime(end_date.year, end_date.month, 1, tzinfo=UTC)
             start_date = min(month_start, end_date - timedelta(days=45))
 
+            days_requested = (end_date - start_date).days
             _LOGGER.debug(
-                f"Fetching usage data for service {service_connection_id} ({(end_date - start_date).days} days)"
+                f"Fetching usage data for service {service_connection_id} ({days_requested} days)"
             )
 
+            api_start = time.time()
             result = self.client.get_usage(
                 service_connection_id=service_connection_id,
                 start_date=start_date,
                 end_date=end_date,
                 period="day",
             )
+            api_elapsed = time.time() - api_start
+            total_elapsed = time.time() - start_time
 
-            elapsed = time.time() - start_time
             if result and result.usage_data:
+                records_count = len(result.usage_data)
                 _LOGGER.debug(
-                    f"API fetch: service {service_connection_id} returned {len(result.usage_data)} usage records in {elapsed:.2f}s"
+                    f"API fetch: service {service_connection_id} returned {records_count} usage records "
+                    f"(API: {api_elapsed:.3f}s, total: {total_elapsed:.3f}s, {records_count / api_elapsed:.1f} records/sec)"
                 )
                 return result
             else:
                 _LOGGER.warning(
-                    f"API fetch: service {service_connection_id} returned no data (took {elapsed:.2f}s)"
+                    f"API fetch: service {service_connection_id} returned no data "
+                    f"(API: {api_elapsed:.3f}s, total: {total_elapsed:.3f}s)"
                 )
                 return result
         except Exception as ex:
             elapsed = time.time() - start_time
             _LOGGER.error(
-                f"Error getting usage for service {service_connection_id} after {elapsed:.2f}s: {ex}"
+                f"Error getting usage for service {service_connection_id} after {elapsed:.3f}s: {ex}"
             )
             return None
 
     def _get_historical_state(self, service_connection_id: int) -> dict[str, Any]:
         """Get historical state for a service connection."""
-        if service_connection_id not in self._historical_state:
-            self._historical_state[service_connection_id] = {
-                LAST_SEEN_DATES_KEY: set(),
-                LAST_UPDATE_KEY: None,
-            }
-        return self._historical_state[service_connection_id]
+        with self._state_lock:
+            if service_connection_id not in self._historical_state:
+                self._historical_state[service_connection_id] = {
+                    LAST_SEEN_DATES_KEY: set(),
+                    LAST_UPDATE_KEY: None,
+                }
+            return self._historical_state[service_connection_id]
+
+    def _check_and_mark_statistics_inserted(
+        self, service_connection_id: int, insertion_key: str
+    ) -> bool:
+        """Thread-safe check and mark for statistics insertion tracking."""
+        with self._state_lock:
+            if service_connection_id not in self._statistics_inserted_this_session:
+                self._statistics_inserted_this_session[service_connection_id] = set()
+
+            if (
+                insertion_key
+                in self._statistics_inserted_this_session[service_connection_id]
+            ):
+                return True  # Already inserted
+
+            # Mark as inserted
+            self._statistics_inserted_this_session[service_connection_id].add(
+                insertion_key
+            )
+            return False  # Not previously inserted
 
     def _detect_new_historical_data(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -209,15 +329,20 @@ class DropCountrUsageDataUpdateCoordinator(
                 new_historical_data.append(usage_data)
 
         if new_historical_data:
+            # Sort by date for cleaner logging
+            new_historical_data.sort(key=lambda x: x.start_date.date())
             _LOGGER.info(
                 f"Found {len(new_historical_data)} new historical data points for service {service_connection_id} "
-                f"(dates: {[data.start_date.date() for data in new_historical_data]})"
+                f"(date range: {new_historical_data[0].start_date.date()} to {new_historical_data[-1].start_date.date()})"
             )
 
         return new_historical_data
 
     async def _insert_historical_statistics(
-        self, service_connection_id: int, historical_data: list[UsageData]
+        self,
+        service_connection_id: int,
+        historical_data: list[UsageData],
+        service_connection: ServiceConnection,
     ) -> None:
         """Insert historical usage data as external statistics."""
         if not historical_data:
@@ -238,22 +363,7 @@ class DropCountrUsageDataUpdateCoordinator(
             )
             return
 
-        # Get service connection for naming
-        try:
-            service_connections = await self.hass.async_add_executor_job(
-                self.client.list_service_connections
-            )
-            service_connection = next(
-                (sc for sc in service_connections if sc.id == service_connection_id),
-                None,
-            )
-            if not service_connection:
-                _LOGGER.error(f"Service connection {service_connection_id} not found")
-                return
-        except Exception as ex:
-            _LOGGER.error(f"Error getting service connection for statistics: {ex}")
-            return
-
+        stats_start = time.time()
         _LOGGER.info(
             f"Inserting statistics for {len(historical_data)} historical data points (service {service_connection_id})"
         )
@@ -281,6 +391,16 @@ class DropCountrUsageDataUpdateCoordinator(
         # Process each metric type
         for metric_type, config in statistics_config.items():
             statistic_id = config["id"]
+
+            # Create a key to track this specific insertion and check if already processed
+            insertion_key = f"{metric_type}_{min(data.start_date.date() for data in historical_data)}_{max(data.start_date.date() for data in historical_data)}"
+            if self._check_and_mark_statistics_inserted(
+                service_connection_id, insertion_key
+            ):
+                _LOGGER.debug(
+                    f"Skipping {metric_type} statistics insertion for service {service_connection_id}: already inserted in this session"
+                )
+                continue
 
             # Get the last existing statistic to determine starting point for sums
             try:
@@ -312,14 +432,21 @@ class DropCountrUsageDataUpdateCoordinator(
                 oldest_historical_local = dt_util.as_local(oldest_historical_date)
 
                 # Compare using dates only to avoid timezone precision issues
-                if last_time_dt.date() > oldest_historical_local.date():
+                # Only reset if the gap is significant (more than 2 days) to avoid unnecessary resets
+                date_diff = (last_time_dt.date() - oldest_historical_local.date()).days
+                if date_diff > 2:
                     _LOGGER.warning(
                         f"Statistics inconsistency detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
-                        f"is newer than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
+                        f"is {date_diff} days newer than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
                     )
                     # Reset to allow historical data processing
                     existing_sum = 0.0
                     last_time = 0
+                elif date_diff > 0:
+                    _LOGGER.debug(
+                        f"Small date gap detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
+                        f"is {date_diff} days newer than oldest historical date ({oldest_historical_local.date()}). Continuing normally."
+                    )
             else:
                 # Starting fresh
                 existing_sum = 0.0
@@ -349,6 +476,9 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
+                    _LOGGER.debug(
+                        f"Skipping {metric_type} for {usage_date}: already processed (timestamp {local_start_date.timestamp()} <= {last_time})"
+                    )
                     continue
 
                 # Get the appropriate value for this metric
@@ -373,9 +503,19 @@ class DropCountrUsageDataUpdateCoordinator(
 
             if statistics:
                 try:
+                    # Log what we're about to insert for debugging
+                    date_range = (
+                        f"{statistics[0].start.date()} to {statistics[-1].start.date()}"
+                        if len(statistics) > 1
+                        else str(statistics[0].start.date())
+                    )
+                    _LOGGER.debug(
+                        f"Inserting {len(statistics)} {metric_type} statistics for dates: {date_range}"
+                    )
+
                     async_add_external_statistics(self.hass, metadata, statistics)
                     _LOGGER.debug(
-                        f"Inserted {len(statistics)} {metric_type} statistics"
+                        f"Successfully inserted {len(statistics)} {metric_type} statistics"
                     )
                 except Exception as ex:
                     _LOGGER.error(
@@ -384,6 +524,11 @@ class DropCountrUsageDataUpdateCoordinator(
                     )
                     raise
 
+        stats_elapsed = time.time() - stats_start
+        _LOGGER.debug(
+            f"Statistics insertion completed in {stats_elapsed:.3f}s for service {service_connection_id}"
+        )
+
     def _update_historical_state(
         self, service_connection_id: int, usage_response: UsageResponse
     ) -> None:
@@ -391,21 +536,98 @@ class DropCountrUsageDataUpdateCoordinator(
         if not usage_response or not usage_response.usage_data:
             return
 
-        historical_state = self._get_historical_state(service_connection_id)
+        current_date = datetime.now().date()
+        cutoff_date = current_date - timedelta(days=60)  # Keep only last 60 days
 
-        # Add all current dates to the seen set
+        # Collect new dates to add
+        new_dates = set()
         for usage_data in usage_response.usage_data:
             usage_date = usage_data.start_date.date()
-            historical_state[LAST_SEEN_DATES_KEY].add(usage_date)
+            # Only track dates that are within our retention window
+            if cutoff_date <= usage_date <= current_date:
+                new_dates.add(usage_date)
 
-        # Update the last update timestamp
-        historical_state[LAST_UPDATE_KEY] = datetime.now()
+        # Thread-safe update of historical state
+        with self._state_lock:
+            if service_connection_id not in self._historical_state:
+                self._historical_state[service_connection_id] = {
+                    LAST_SEEN_DATES_KEY: set(),
+                    LAST_UPDATE_KEY: None,
+                }
 
-        # Clean up old dates (keep only last 60 days to prevent memory growth)
+            historical_state = self._historical_state[service_connection_id]
+
+            # Merge with existing dates and apply retention policy in one atomic operation
+            existing_dates = historical_state[LAST_SEEN_DATES_KEY]
+            historical_state[LAST_SEEN_DATES_KEY] = (existing_dates | new_dates) & {
+                date for date in (existing_dates | new_dates) if date > cutoff_date
+            }
+
+            # Update the last update timestamp
+            historical_state[LAST_UPDATE_KEY] = datetime.now()
+
+            # Log memory usage periodically (every 10th update)
+            dates_count = len(historical_state[LAST_SEEN_DATES_KEY])
+            if dates_count > 0 and dates_count % 10 == 0:
+                _LOGGER.debug(
+                    f"Historical state memory: service {service_connection_id} tracking {dates_count} dates"
+                )
+
+    def _cleanup_historical_state(self) -> None:
+        """Periodic cleanup of historical state to prevent memory growth."""
         cutoff_date = datetime.now().date() - timedelta(days=60)
-        historical_state[LAST_SEEN_DATES_KEY] = {
-            date for date in historical_state[LAST_SEEN_DATES_KEY] if date > cutoff_date
-        }
+        services_cleaned = 0
+        dates_removed = 0
+
+        with self._state_lock:
+            for _service_id, state in self._historical_state.items():
+                if LAST_SEEN_DATES_KEY in state:
+                    original_count = len(state[LAST_SEEN_DATES_KEY])
+                    state[LAST_SEEN_DATES_KEY] = {
+                        date
+                        for date in state[LAST_SEEN_DATES_KEY]
+                        if date > cutoff_date
+                    }
+                    removed = original_count - len(state[LAST_SEEN_DATES_KEY])
+                    if removed > 0:
+                        services_cleaned += 1
+                        dates_removed += removed
+
+        if services_cleaned > 0:
+            _LOGGER.debug(
+                f"Historical state cleanup: removed {dates_removed} old dates from {services_cleaned} services"
+            )
+
+    async def _process_service_connection(
+        self, service_connection: ServiceConnection
+    ) -> tuple[int, UsageResponse | None, int]:
+        """Process a single service connection and return usage data and historical count."""
+        usage_response = await self.hass.async_add_executor_job(
+            self._get_usage_for_service, service_connection.id
+        )
+
+        historical_count = 0
+        if usage_response:
+            # Detect and process historical data
+            historical_data = self._detect_new_historical_data(
+                service_connection.id, usage_response
+            )
+            if historical_data:
+                historical_count = len(historical_data)
+                try:
+                    await self._insert_historical_statistics(
+                        service_connection.id, historical_data, service_connection
+                    )
+                except Exception as ex:
+                    _LOGGER.error(
+                        f"Failed to insert historical statistics for service {service_connection.id}: {ex}. Continuing with normal operation.",
+                        exc_info=True,
+                    )
+
+            # Update historical state tracking
+            self._update_historical_state(service_connection.id, usage_response)
+
+        return service_connection.id, usage_response, historical_count
 
     async def _async_update_data(self) -> dict[int, UsageResponse]:
         """Update usage data for all service connections."""
@@ -413,15 +635,14 @@ class DropCountrUsageDataUpdateCoordinator(
         _LOGGER.debug("Starting usage data update cycle")
 
         try:
-            # First get all service connections
+            # Get all service connections using cache
             conn_start = time.time()
-            service_connections = await self.hass.async_add_executor_job(
-                self.client.list_service_connections
-            )
+            service_connections = await self._get_cached_service_connections()
             conn_elapsed = time.time() - conn_start
+
             if not service_connections:
                 _LOGGER.warning(
-                    f"No service connections found (API call took {conn_elapsed:.2f}s)"
+                    f"No service connections found (operation took {conn_elapsed:.2f}s)"
                 )
                 return {}
             else:
@@ -429,45 +650,50 @@ class DropCountrUsageDataUpdateCoordinator(
                     f"Retrieved {len(service_connections)} service connections in {conn_elapsed:.2f}s"
                 )
 
+            # Process all service connections in parallel
+            processing_start = time.time()
+            tasks = [
+                self._process_service_connection(service_connection)
+                for service_connection in service_connections
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            processing_elapsed = time.time() - processing_start
+
+            # Process results
             usage_data = {}
             processed_count = 0
             historical_count = 0
             total_usage_records = 0
 
-            for service_connection in service_connections:
-                usage_response = await self.hass.async_add_executor_job(
-                    self._get_usage_for_service, service_connection.id
-                )
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    _LOGGER.error(
+                        f"Error processing service connection {service_connections[i].id}: {result}",
+                        exc_info=result,
+                    )
+                    continue
+
+                service_id, usage_response, hist_count = result
                 if usage_response:
                     processed_count += 1
+                    historical_count += hist_count
                     if usage_response.usage_data:
                         total_usage_records += len(usage_response.usage_data)
-                    # Detect and process historical data
-                    historical_data = self._detect_new_historical_data(
-                        service_connection.id, usage_response
-                    )
-                    if historical_data:
-                        historical_count += len(historical_data)
-                        try:
-                            await self._insert_historical_statistics(
-                                service_connection.id, historical_data
-                            )
-                        except Exception as ex:
-                            _LOGGER.error(
-                                f"Failed to insert historical statistics for service {service_connection.id}: {ex}. Continuing with normal operation.",
-                                exc_info=True,
-                            )
-
-                    # Update historical state tracking
-                    self._update_historical_state(service_connection.id, usage_response)
-
-                    usage_data[service_connection.id] = usage_response
+                    usage_data[service_id] = usage_response
 
             self.usage_data = usage_data
+
+            # Periodic cleanup of historical state (every 10th update)
+            update_count = len(usage_data)
+            if update_count > 0 and update_count % 10 == 0:
+                self._cleanup_historical_state()
+
             elapsed = time.time() - start_time
             _LOGGER.info(
                 f"Update cycle completed: {processed_count}/{len(service_connections)} services, "
-                f"{total_usage_records} usage records, {historical_count} historical points inserted, {elapsed:.2f}s total"
+                f"{total_usage_records} usage records, {historical_count} historical points inserted, "
+                f"{elapsed:.2f}s total (connections: {conn_elapsed:.2f}s, processing: {processing_elapsed:.2f}s)"
             )
         except Exception as ex:
             elapsed = time.time() - start_time
