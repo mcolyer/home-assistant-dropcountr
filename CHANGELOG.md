@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-01-20
+
+### Fixed
+- Hassfest workflow configuration to only validate the dropcountr integration instead of all Home Assistant core integrations
+- CI and release workflows now properly target the custom integration path
+
 ## [0.1.0] - 2025-01-20
 
 ### Added
