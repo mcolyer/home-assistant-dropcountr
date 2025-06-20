@@ -131,6 +131,9 @@ class DropCountrUsageDataUpdateCoordinator(
         self._cache_duration = timedelta(
             minutes=5
         )  # Cache service connections for 5 minutes
+        self._statistics_inserted_this_session: dict[
+            int, set[str]
+        ] = {}  # Track what we've inserted per service
 
     def _raise_cache_failure(self, message: str) -> None:
         """Raise cache failure exception."""
@@ -341,9 +344,24 @@ class DropCountrUsageDataUpdateCoordinator(
             },
         }
 
+        # Track what we've inserted in this session to prevent duplicates
+        if service_connection_id not in self._statistics_inserted_this_session:
+            self._statistics_inserted_this_session[service_connection_id] = set()
+
         # Process each metric type
         for metric_type, config in statistics_config.items():
             statistic_id = config["id"]
+
+            # Create a key to track this specific insertion
+            insertion_key = f"{metric_type}_{min(data.start_date.date() for data in historical_data)}_{max(data.start_date.date() for data in historical_data)}"
+            if (
+                insertion_key
+                in self._statistics_inserted_this_session[service_connection_id]
+            ):
+                _LOGGER.debug(
+                    f"Skipping {metric_type} statistics insertion for service {service_connection_id}: already inserted in this session"
+                )
+                continue
 
             # Get the last existing statistic to determine starting point for sums
             try:
@@ -419,6 +437,9 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
+                    _LOGGER.debug(
+                        f"Skipping {metric_type} for {usage_date}: already processed (timestamp {local_start_date.timestamp()} <= {last_time})"
+                    )
                     continue
 
                 # Get the appropriate value for this metric
@@ -443,9 +464,23 @@ class DropCountrUsageDataUpdateCoordinator(
 
             if statistics:
                 try:
+                    # Log what we're about to insert for debugging
+                    date_range = (
+                        f"{statistics[0].start.date()} to {statistics[-1].start.date()}"
+                        if len(statistics) > 1
+                        else str(statistics[0].start.date())
+                    )
+                    _LOGGER.debug(
+                        f"Inserting {len(statistics)} {metric_type} statistics for dates: {date_range}"
+                    )
+
                     async_add_external_statistics(self.hass, metadata, statistics)
                     _LOGGER.debug(
-                        f"Inserted {len(statistics)} {metric_type} statistics"
+                        f"Successfully inserted {len(statistics)} {metric_type} statistics"
+                    )
+                    # Mark this insertion as completed to prevent duplicates
+                    self._statistics_inserted_this_session[service_connection_id].add(
+                        insertion_key
                     )
                 except Exception as ex:
                     _LOGGER.error(
