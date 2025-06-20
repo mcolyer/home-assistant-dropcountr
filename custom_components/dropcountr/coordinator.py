@@ -167,9 +167,16 @@ class DropCountrUsageDataUpdateCoordinator(
             # Convert start_date to date for comparison
             usage_date = usage_data.start_date.date()
 
-            # Check if this is new data and if it's more than 1 day old (historical)
+            # Check if this is new data and if it's historical
             is_new_data = usage_date not in last_seen_dates
-            is_historical = (current_date - usage_date).days > 1
+            days_old = (current_date - usage_date).days
+
+            # Consider data historical if:
+            # - It's more than 1 day old, OR
+            # - It's exactly 1 day old (yesterday) and has non-zero total gallons
+            is_historical = days_old > 1 or (
+                days_old == 1 and usage_data.total_gallons > 0
+            )
 
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)

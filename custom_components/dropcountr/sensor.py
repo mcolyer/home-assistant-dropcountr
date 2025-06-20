@@ -141,9 +141,14 @@ class DropCountrSensor(
     def _filter_recent_incomplete_data(
         self, usage_data: list[UsageData]
     ) -> list[UsageData]:
-        """Filter out today and yesterday data to avoid reporting 0 values for incomplete data.
+        """Filter out incomplete recent data to avoid reporting premature values.
 
-        These sensors will be properly updated when historical data arrives with accurate timestamps.
+        - Always filters today's data (typically incomplete)
+        - Filters yesterday's data only if it's zero (incomplete)
+        - Includes yesterday's data if non-zero (likely complete)
+
+        This allows timely reporting of complete previous day data while avoiding
+        premature reporting of incomplete data.
         """
         if not usage_data:
             return []
@@ -151,11 +156,18 @@ class DropCountrSensor(
         today = _get_current_date()
         yesterday = today - timedelta(days=1)
 
-        # Filter out today and yesterday since this data is typically delayed 1-3 days
+        # Filter out incomplete data:
+        # - Always filter today's data (typically incomplete)
+        # - Filter yesterday's data only if it's zero (incomplete)
+        # - Include yesterday's data if it has non-zero values (likely complete)
         filtered_data = []
         for data in usage_data:
             usage_date = data.start_date.date()
-            if usage_date < yesterday:  # Only include data from 2+ days ago
+            if usage_date < yesterday:  # Include data from 2+ days ago
+                filtered_data.append(data)
+            elif (
+                usage_date == yesterday and data.total_gallons > 0
+            ):  # Include non-zero yesterday data
                 filtered_data.append(data)
 
         return filtered_data
