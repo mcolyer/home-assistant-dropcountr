@@ -7,40 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Smart historical timestamp reporting for delayed water usage data
-- Automatic detection of newly arrived historical data (1-3 day delays)
-- Historical state_changed events with accurate original timestamps
-- Deduplication logic to prevent duplicate historical state reporting
-- Memory management with automatic cleanup of tracking data older than 60 days
-- Comprehensive GitHub Actions CI/CD workflows for testing and validation
-- Dependabot configuration for automated dependency updates
-- Comprehensive .gitignore file for Python development
-
-### Fixed
-- Timezone handling in historical statistics to prevent one-day offset in charts
-- UTC timestamps from DropCountr API now properly converted to Home Assistant's local timezone
-- Statistics data now appears on correct dates in Home Assistant analytics
-
-### Changed
-- Updated Python requirement from >=3.13 to >=3.13.2 to match Home Assistant 2025.6.0
-- Enhanced data coordinator with historical data processing capabilities
-- Improved documentation with detailed algorithm explanations
-
-### Technical Details
-- Added persistent state tracking in `DropCountrUsageDataUpdateCoordinator`
-- Implemented `_detect_new_historical_data()` for smart data detection
-- Added `_fire_historical_state_events()` for historical timestamp reporting
-- Created comprehensive test suite with 16+ test cases covering all scenarios
-- Zero configuration required - works automatically without user intervention
-
-### Development
-- Added comprehensive test coverage for historical data functionality
-- Configured Ruff linting with Home Assistant standards
-- Set up automated CI/CD pipeline with GitHub Actions
-- Enhanced development documentation in CLAUDE.md
-
-## [0.1.0] - Initial Release
+## [0.1.0] - 2025-01-20
 
 ### Added
 - Initial Home Assistant integration for DropCountr water monitoring service
@@ -57,6 +24,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with PyDropCountr library v0.1.2
 - Daily polling strategy optimized for DropCountr's data update patterns
 - Support for Home Assistant statistics and long-term data storage
+- Smart historical timestamp reporting for delayed water usage data
+- Automatic detection of newly arrived historical data (1-3 day delays)
+- Deduplication logic to prevent duplicate historical state reporting
+- Memory management with automatic cleanup of tracking data older than 60 days
+- Comprehensive GitHub Actions CI/CD workflows for testing and validation
+- Dependabot configuration for automated dependency updates
+- Previous day statistics publishing when data is non-zero and available
+
+### Fixed
+- Timezone handling in historical statistics to prevent one-day offset in charts
+- UTC timestamps from DropCountr API now properly converted to Home Assistant's local timezone
+- Statistics data now appears on correct dates in Home Assistant analytics
+- Water sensor state class configuration for Home Assistant compliance
+- Manifest.json validation errors for Home Assistant integration standards
+
+### Changed
+- Updated Python requirement from >=3.13 to >=3.13.2 to match Home Assistant 2025.6.0
+- Enhanced data coordinator with historical data processing capabilities
+- Improved sensor filtering to allow timely previous day data when complete
+- Enhanced entity naming for cleaner UI display
 
 ### Technical Features
 - Built on Home Assistant integration blueprint architecture
@@ -65,3 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Entity naming follows Home Assistant conventions
 - Comprehensive error handling and logging
 - Development environment with Home Assistant debug configuration
+- Added persistent state tracking in `DropCountrUsageDataUpdateCoordinator`
+- Implemented smart data detection algorithms for historical data
+- Created comprehensive test suite with 30+ test cases covering all scenarios
+- Zero configuration required for historical data - works automatically
+- Configured Ruff linting with Home Assistant standards
+- Enhanced development documentation in CLAUDE.md
