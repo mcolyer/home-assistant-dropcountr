@@ -197,16 +197,10 @@ class DropCountrSensor(
     def _get_monthly_usage(self) -> float:
         """Get usage for the current month to date."""
         if not self.coordinator.data:
-            _LOGGER.debug(
-                f"No coordinator data available for monthly usage calculation on {self.service_connection_id}"
-            )
             return 0.0
 
         usage_response = self.coordinator.data.get(self.service_connection_id)
         if not usage_response or not usage_response.usage_data:
-            _LOGGER.debug(
-                f"No usage data available for service {self.service_connection_id}"
-            )
             return 0.0
 
         # Get the start of current month
@@ -225,10 +219,10 @@ class DropCountrSensor(
         # For monthly total, always use total gallons (not irrigation specific)
         total_usage = sum(data.total_gallons for data in monthly_data)
 
-        _LOGGER.debug(
-            f"Monthly usage calculation for service {self.service_connection_id}: "
-            f"{len(monthly_data)} days in month, total: {total_usage:.2f} gallons"
-        )
+        if len(monthly_data) > 0:
+            _LOGGER.debug(
+                f"Monthly usage: service {self.service_connection_id} has {len(monthly_data)} days, {total_usage:.2f} gallons"
+            )
 
         return total_usage
 
@@ -262,9 +256,6 @@ class DropCountrSensor(
         filtered_data = self._filter_recent_incomplete_data(usage_response.usage_data)
 
         if not filtered_data:
-            _LOGGER.debug(
-                f"No filtered data available for {sensor_key} on service {self.service_connection_id}"
-            )
             return None
 
         # Get the most recent filtered data
@@ -277,11 +268,13 @@ class DropCountrSensor(
         }
 
         value = sensor_value_map.get(sensor_key)
-        _LOGGER.debug(
-            f"Sensor {sensor_key} for service {self.service_connection_id}: "
-            f"filtered {len(usage_response.usage_data)} -> {len(filtered_data)} data points, "
-            f"latest date: {latest_data.start_date.date()}, value: {value}"
-        )
+
+        # Log only when filtering significantly reduces data points (indicates incomplete recent data)
+        if len(usage_response.usage_data) - len(filtered_data) > 1:
+            _LOGGER.debug(
+                f"Filtered incomplete data for {sensor_key} service {self.service_connection_id}: "
+                f"{len(usage_response.usage_data)} -> {len(filtered_data)} points, latest: {latest_data.start_date.date()}"
+            )
 
         return value
 

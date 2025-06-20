@@ -153,7 +153,9 @@ def setup_service(hass: HomeAssistant) -> None:
                 entry.runtime_data.client.get_service_connection, service_connection_id
             )
             elapsed = time.time() - start_time
-            _LOGGER.debug(f"Service get_service_connection completed in {elapsed:.2f}s")
+            _LOGGER.debug(
+                f"Service get_service_connection completed in {elapsed:.2f}s (service {service_connection_id})"
+            )
             return {
                 "service_connection": service_connection.model_dump()
                 if service_connection
@@ -178,7 +180,7 @@ def setup_service(hass: HomeAssistant) -> None:
         end_date = call.data.get(CONF_END_DATE)
 
         _LOGGER.debug(
-            f"Service call: get_hourly_usage for service {service_connection_id}"
+            f"Service call: get_hourly_usage for service {service_connection_id} (date range: {start_date or 'last 24h'} to {end_date or 'now'})"
         )
 
         entry: DropCountrConfigEntry | None = hass.config_entries.async_get_entry(
@@ -214,8 +216,8 @@ def setup_service(hass: HomeAssistant) -> None:
                 if usage_response and usage_response.usage_data
                 else 0
             )
-            _LOGGER.debug(
-                f"Service get_hourly_usage completed in {elapsed:.2f}s ({data_count} data points)"
+            _LOGGER.info(
+                f"Service get_hourly_usage: service {service_connection_id} returned {data_count} hourly records in {elapsed:.2f}s"
             )
             return {
                 "usage_data": usage_response.model_dump() if usage_response else None,

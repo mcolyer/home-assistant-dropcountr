@@ -140,7 +140,7 @@ class DropCountrUsageDataUpdateCoordinator(
             start_date = min(month_start, end_date - timedelta(days=45))
 
             _LOGGER.debug(
-                f"Requesting usage data for service {service_connection_id} from {start_date.date()} to {end_date.date()}"
+                f"Fetching usage data for service {service_connection_id} ({(end_date - start_date).days} days)"
             )
 
             result = self.client.get_usage(
@@ -153,12 +153,12 @@ class DropCountrUsageDataUpdateCoordinator(
             elapsed = time.time() - start_time
             if result and result.usage_data:
                 _LOGGER.debug(
-                    f"Retrieved {len(result.usage_data)} usage data points for service {service_connection_id} in {elapsed:.2f}s"
+                    f"API fetch: service {service_connection_id} returned {len(result.usage_data)} usage records in {elapsed:.2f}s"
                 )
                 return result
             else:
                 _LOGGER.warning(
-                    f"No usage data returned for service {service_connection_id} (took {elapsed:.2f}s)"
+                    f"API fetch: service {service_connection_id} returned no data (took {elapsed:.2f}s)"
                 )
                 return result
         except Exception as ex:
@@ -190,10 +190,6 @@ class DropCountrUsageDataUpdateCoordinator(
         new_historical_data = []
         current_date = datetime.now().date()
 
-        _LOGGER.debug(
-            f"Checking for new historical data for service {service_connection_id}"
-        )
-
         for usage_data in usage_response.usage_data:
             # Convert start_date to date for comparison
             usage_date = usage_data.start_date.date()
@@ -211,16 +207,11 @@ class DropCountrUsageDataUpdateCoordinator(
 
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)
-                _LOGGER.info(
-                    f"Detected new historical data for service {service_connection_id}: "
-                    f"usage_date={usage_date} (from UTC {usage_data.start_date}), "
-                    f"days_old={(current_date - usage_date).days}, "
-                    f"total_gallons={usage_data.total_gallons}"
-                )
 
         if new_historical_data:
-            _LOGGER.debug(
-                f"Found {len(new_historical_data)} new historical data points for service {service_connection_id}"
+            _LOGGER.info(
+                f"Found {len(new_historical_data)} new historical data points for service {service_connection_id} "
+                f"(dates: {[data.start_date.date() for data in new_historical_data]})"
             )
 
         return new_historical_data
@@ -264,7 +255,7 @@ class DropCountrUsageDataUpdateCoordinator(
             return
 
         _LOGGER.info(
-            f"Starting statistics insertion for {len(historical_data)} historical data points"
+            f"Inserting statistics for {len(historical_data)} historical data points (service {service_connection_id})"
         )
 
         # Create statistic IDs and metadata
@@ -315,19 +306,16 @@ class DropCountrUsageDataUpdateCoordinator(
                         last_time_dt = last_time_dt.replace(tzinfo=UTC)
 
                 # For date comparisons, use the date part only to avoid timezone issues
-                # Convert the oldest historical date to the same timezone as last_time_dt for fair comparison
                 oldest_historical_date = min(
                     usage_data.start_date for usage_data in historical_data
                 )
-
-                # Convert oldest historical date to local timezone for comparison
                 oldest_historical_local = dt_util.as_local(oldest_historical_date)
 
                 # Compare using dates only to avoid timezone precision issues
                 if last_time_dt.date() > oldest_historical_local.date():
                     _LOGGER.warning(
-                        f"Last processed date ({last_time_dt.date()}) is newer than oldest historical date ({oldest_historical_local.date()}). "
-                        f"This may indicate corrupted statistics. Resetting to process historical data."
+                        f"Statistics inconsistency detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
+                        f"is newer than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
                     )
                     # Reset to allow historical data processing
                     existing_sum = 0.0
@@ -385,19 +373,16 @@ class DropCountrUsageDataUpdateCoordinator(
 
             if statistics:
                 try:
-                    _LOGGER.info(
-                        f"Inserting {len(statistics)} {metric_type} statistics for service {service_connection_id}"
-                    )
                     async_add_external_statistics(self.hass, metadata, statistics)
-                    _LOGGER.debug(f"Successfully inserted {metric_type} statistics")
+                    _LOGGER.debug(
+                        f"Inserted {len(statistics)} {metric_type} statistics"
+                    )
                 except Exception as ex:
                     _LOGGER.error(
                         f"Failed to insert {metric_type} statistics: {ex}",
                         exc_info=True,
                     )
                     raise
-            else:
-                _LOGGER.debug(f"No new {metric_type} statistics to add")
 
     def _update_historical_state(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -429,16 +414,25 @@ class DropCountrUsageDataUpdateCoordinator(
 
         try:
             # First get all service connections
+            conn_start = time.time()
             service_connections = await self.hass.async_add_executor_job(
                 self.client.list_service_connections
             )
+            conn_elapsed = time.time() - conn_start
             if not service_connections:
-                _LOGGER.warning("No service connections found")
+                _LOGGER.warning(
+                    f"No service connections found (API call took {conn_elapsed:.2f}s)"
+                )
                 return {}
+            else:
+                _LOGGER.debug(
+                    f"Retrieved {len(service_connections)} service connections in {conn_elapsed:.2f}s"
+                )
 
             usage_data = {}
             processed_count = 0
             historical_count = 0
+            total_usage_records = 0
 
             for service_connection in service_connections:
                 usage_response = await self.hass.async_add_executor_job(
@@ -446,6 +440,8 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
                 if usage_response:
                     processed_count += 1
+                    if usage_response.usage_data:
+                        total_usage_records += len(usage_response.usage_data)
                     # Detect and process historical data
                     historical_data = self._detect_new_historical_data(
                         service_connection.id, usage_response
@@ -456,12 +452,9 @@ class DropCountrUsageDataUpdateCoordinator(
                             await self._insert_historical_statistics(
                                 service_connection.id, historical_data
                             )
-                            _LOGGER.info(
-                                f"Successfully inserted {len(historical_data)} historical statistics for service {service_connection.id}"
-                            )
                         except Exception as ex:
                             _LOGGER.error(
-                                f"Failed to insert historical statistics: {ex}. Continuing with normal operation.",
+                                f"Failed to insert historical statistics for service {service_connection.id}: {ex}. Continuing with normal operation.",
                                 exc_info=True,
                             )
 
@@ -472,9 +465,9 @@ class DropCountrUsageDataUpdateCoordinator(
 
             self.usage_data = usage_data
             elapsed = time.time() - start_time
-            _LOGGER.debug(
-                f"Completed usage data update: {processed_count}/{len(service_connections)} services processed, "
-                f"{historical_count} historical data points, took {elapsed:.2f}s"
+            _LOGGER.info(
+                f"Update cycle completed: {processed_count}/{len(service_connections)} services, "
+                f"{total_usage_records} usage records, {historical_count} historical points inserted, {elapsed:.2f}s total"
             )
         except Exception as ex:
             elapsed = time.time() - start_time
