@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2025-06-20
+
+### Fixed
+- **CRITICAL**: Statistics reset logic that was causing data corruption and false warnings
+- Removed unnecessary reset logic that reprocessed all historical data on every update cycle
+- Eliminated recurring "Statistics inconsistency detected" warnings that appeared on every update
+- Data corruption from duplicate statistics processing that added same values multiple times to cumulative sums
+- Performance issues from unnecessary reprocessing of 44+ historical records per update cycle
+
+### Changed
+- Simplified statistics processing logic by removing 25+ lines of complex and unnecessary reset code
+- Enhanced debug logging to show continuation vs fresh starts for better troubleshooting
+- Improved timestamp-based filtering which correctly handles all date gap scenarios without corruption
+
+### Technical Improvements
+- Statistics now properly continue from last processed timestamp instead of resetting
+- Cumulative sums maintain integrity across updates without duplicate value additions
+- Cleaner, more reliable codebase with simplified timestamp handling and comparison logic
+- Better data integrity protection in Home Assistant's statistics database
+
 ## [0.1.5] - 2025-06-20
 
 ### Fixed
