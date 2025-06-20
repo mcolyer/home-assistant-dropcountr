@@ -416,44 +416,27 @@ class DropCountrUsageDataUpdateCoordinator(
                 existing_sum = last_stat[statistic_id][0].get("sum", 0.0)
                 last_time = last_stat[statistic_id][0]["start"]
 
-                # Convert last_time to datetime for easier comparison
-                if isinstance(last_time, (int, float)):
-                    last_time_dt = datetime.fromtimestamp(last_time, tz=UTC)
-                else:
-                    last_time_dt = last_time
-                    # Ensure it has timezone info
-                    if last_time_dt.tzinfo is None:
-                        last_time_dt = last_time_dt.replace(tzinfo=UTC)
+                # Convert last_time to timestamp for comparison
+                if not isinstance(last_time, (int, float)):
+                    # Convert datetime to timestamp
+                    if hasattr(last_time, "timestamp"):
+                        last_time = last_time.timestamp()
+                    else:
+                        # Fallback for other datetime formats
+                        if last_time.tzinfo is None:
+                            last_time = last_time.replace(tzinfo=UTC)
+                        last_time = last_time.timestamp()
 
-                # For date comparisons, use the date part only to avoid timezone issues
-                oldest_historical_date = min(
-                    usage_data.start_date for usage_data in historical_data
+                _LOGGER.debug(
+                    f"Continuing {metric_type} statistics from last processed timestamp: {last_time} (sum: {existing_sum})"
                 )
-                oldest_historical_local = dt_util.as_local(oldest_historical_date)
-
-                # Compare using dates only to avoid timezone precision issues
-                # Only reset if we're trying to process data that's OLDER than what we last processed
-                # (i.e., there's a backwards gap, not a forward gap)
-                date_diff = (last_time_dt.date() - oldest_historical_local.date()).days
-                if date_diff < 0:
-                    # Last processed date is OLDER than oldest historical date - this is a backwards gap
-                    _LOGGER.warning(
-                        f"Statistics inconsistency detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
-                        f"is {abs(date_diff)} days older than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
-                    )
-                    # Reset to allow historical data processing
-                    existing_sum = 0.0
-                    last_time = 0
-                else:
-                    # Last processed date is same or newer than oldest historical date - this is normal
-                    _LOGGER.debug(
-                        f"Statistics continuity check for {statistic_id}: last processed date ({last_time_dt.date()}) "
-                        f"is {date_diff} days newer than oldest historical date ({oldest_historical_local.date()}). Continuing normally."
-                    )
             else:
-                # Starting fresh
+                # Starting fresh - no existing statistics
                 existing_sum = 0.0
                 last_time = 0
+                _LOGGER.debug(
+                    f"Starting fresh {metric_type} statistics for {statistic_id}"
+                )
 
             # Create metadata
             metadata = StatisticMetaData(
