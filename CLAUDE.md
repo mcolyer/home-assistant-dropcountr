@@ -190,6 +190,116 @@ Based on development experience with this integration, here are key learnings fo
 
 These patterns ensure robust integrations that work reliably in diverse Home Assistant environments.
 
+## Performance and Threading Best Practices
+
+Based on comprehensive performance optimization and thread safety improvements, here are critical patterns for high-performance Home Assistant integrations:
+
+### Threading Model Understanding
+
+**Home Assistant's Threading Architecture:**
+- **Main Event Loop**: Single asyncio thread for coordination, state management, and entity updates
+- **Executor Thread Pool**: Multiple threads for blocking operations via `hass.async_add_executor_job()`
+- **Concurrent Processing**: `asyncio.gather()` coordinates multiple executor jobs in parallel
+
+**Threading Rules:**
+- Async methods run in main event loop (non-blocking)
+- Sync API calls must use `async_add_executor_job()` (blocking operations)
+- Shared state accessed from both contexts requires synchronization
+
+### Thread Safety Patterns
+
+**Critical Requirements:**
+- All shared mutable state must be protected with `threading.Lock()`
+- Use separate locks for different concerns (`cache_lock`, `state_lock`)
+- Implement atomic operations for check-then-set scenarios
+- Return copies of shared data to prevent external mutations
+
+**Example Thread-Safe Patterns:**
+```python
+# Thread-safe cache access
+with self._cache_lock:
+    if self._cached_data is not None:
+        return self._cached_data.copy()
+
+# Atomic check-and-set operation
+def _check_and_mark_processed(self, key: str) -> bool:
+    with self._state_lock:
+        if key in self._processed_items:
+            return True  # Already processed
+        self._processed_items.add(key)
+        return False  # Not previously processed
+```
+
+### Performance Optimization Strategies
+
+**API Call Optimization:**
+- Implement intelligent caching with reasonable TTL (5+ minutes)
+- Use graceful fallback to cached data on API failures
+- Cache frequently accessed data like service connections
+- Monitor and log API call frequency and response times
+
+**Parallel Processing:**
+- Use `asyncio.gather()` for concurrent operations on independent data
+- Process multiple service connections/devices in parallel
+- Maintain error isolation between parallel tasks
+- Balance concurrency with API rate limits
+
+**Memory Management:**
+- Implement retention policies for historical data (30-60 days)
+- Use efficient data structures (sets for tracking, not lists)
+- Periodic cleanup of old tracking data
+- Monitor memory usage and log growth patterns
+
+### Coordinator Performance Patterns
+
+**Efficient Update Cycles:**
+- Separate connection fetching from data processing timing
+- Use local variables for building results, then atomic assignment
+- Cache expensive operations like service connection listings
+- Implement circuit breakers for API failures
+
+**Statistics Integration:**
+- Use session-level tracking to prevent duplicate statistics
+- Implement tolerance for small date gaps in consistency checks
+- Prefer database-level filtering over application-level deduplication
+- Log statistics operations for debugging without excessive verbosity
+
+### Common Anti-Patterns to Avoid
+
+**Threading Issues:**
+- ❌ Direct shared state access without locks
+- ❌ Check-then-set operations without atomicity
+- ❌ Blocking operations in main event loop
+- ❌ Non-thread-safe data structures for shared state
+
+**Performance Issues:**
+- ❌ API calls on every entity update
+- ❌ Sequential processing of independent operations
+- ❌ Unbounded memory growth in tracking data
+- ❌ Synchronous operations blocking async workflows
+
+**Statistics Problems:**
+- ❌ Aggressive reset logic causing reprocessing
+- ❌ Manual state_changed events for historical data
+- ❌ Processing same data multiple times
+- ❌ Missing graceful degradation on statistics failures
+
+### Monitoring and Debugging
+
+**Performance Metrics:**
+- Track API call frequency and response times
+- Monitor update cycle duration with timing breakdowns
+- Log cache hit rates and memory usage patterns
+- Use debug logging for performance bottleneck identification
+
+**Thread Safety Validation:**
+- Test under concurrent load conditions
+- Monitor for race condition symptoms (inconsistent state)
+- Validate atomic operations under stress
+- Use comprehensive logging for debugging race conditions
+
+These patterns ensure integrations perform efficiently while maintaining data consistency in Home Assistant's multi-threaded environment.
+
 ## Project Maintenance
 
 ### Changelog Management
