@@ -270,7 +270,6 @@ class DropCountrUsageDataUpdateCoordinator(
                 last_time = last_stat[statistic_id][0]["start"]
 
                 # Convert last_time to datetime for easier comparison
-                from datetime import datetime
 
                 if isinstance(last_time, (int, float)):
                     last_time_dt = datetime.fromtimestamp(last_time, tz=UTC)

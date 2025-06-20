@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from pydropcountr import DropCountrClient
 from requests.exceptions import RequestException
 import voluptuous as vol
@@ -156,7 +158,6 @@ def setup_service(hass: HomeAssistant) -> None:
 
     async def get_hourly_usage(call: ServiceCall) -> ServiceResponse:
         """Return hourly usage data for a specific service connection."""
-        from datetime import datetime, timedelta
 
         entry_id: str = call.data[CONF_CONFIG_ENTRY]
         service_connection_id: int = call.data[CONF_SERVICE_CONNECTION_ID]
