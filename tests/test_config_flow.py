@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.dropcountr.config_flow import (
     CannotConnect,
@@ -115,7 +116,6 @@ async def test_form_unknown_error(hass: HomeAssistant) -> None:
 
 async def test_reauth_flow(hass: HomeAssistant) -> None:
     """Test reauth flow."""
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     config_entry = MockConfigEntry(
         domain=DOMAIN, data=MOCK_CONFIG, unique_id=MOCK_CONFIG["username"]

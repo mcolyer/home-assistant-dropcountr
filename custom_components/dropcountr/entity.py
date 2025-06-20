@@ -14,9 +14,9 @@ from .coordinator import (
 
 
 class DropCountrEntity[
-    _DropCountrCoordinatorT: DropCountrServiceConnectionDataUpdateCoordinator
+    DropCountrCoordinatorT: DropCountrServiceConnectionDataUpdateCoordinator
     | DropCountrUsageDataUpdateCoordinator
-](CoordinatorEntity[_DropCountrCoordinatorT]):
+](CoordinatorEntity[DropCountrCoordinatorT]):
     """Base entity class."""
 
     _attr_attribution = "Data provided by DropCountr API"
@@ -24,7 +24,7 @@ class DropCountrEntity[
 
     def __init__(
         self,
-        coordinator: _DropCountrCoordinatorT,
+        coordinator: DropCountrCoordinatorT,
         description: EntityDescription,
         service_connection_id: int,
         service_connection_name: str,
