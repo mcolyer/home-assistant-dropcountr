@@ -432,19 +432,22 @@ class DropCountrUsageDataUpdateCoordinator(
                 oldest_historical_local = dt_util.as_local(oldest_historical_date)
 
                 # Compare using dates only to avoid timezone precision issues
-                # Only reset if the gap is significant (more than 2 days) to avoid unnecessary resets
+                # Only reset if we're trying to process data that's OLDER than what we last processed
+                # (i.e., there's a backwards gap, not a forward gap)
                 date_diff = (last_time_dt.date() - oldest_historical_local.date()).days
-                if date_diff > 2:
+                if date_diff < 0:
+                    # Last processed date is OLDER than oldest historical date - this is a backwards gap
                     _LOGGER.warning(
                         f"Statistics inconsistency detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
-                        f"is {date_diff} days newer than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
+                        f"is {abs(date_diff)} days older than oldest historical date ({oldest_historical_local.date()}). Resetting to process historical data."
                     )
                     # Reset to allow historical data processing
                     existing_sum = 0.0
                     last_time = 0
-                elif date_diff > 0:
+                else:
+                    # Last processed date is same or newer than oldest historical date - this is normal
                     _LOGGER.debug(
-                        f"Small date gap detected for {statistic_id}: last processed date ({last_time_dt.date()}) "
+                        f"Statistics continuity check for {statistic_id}: last processed date ({last_time_dt.date()}) "
                         f"is {date_diff} days newer than oldest historical date ({oldest_historical_local.date()}). Continuing normally."
                     )
             else:
