@@ -493,22 +493,47 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 current_sum += value
 
-                statistics.append(
-                    StatisticData(
-                        start=local_start_date,
-                        state=value,
-                        sum=current_sum,
-                    )
+                # Create and validate StatisticData object
+                stat_data = StatisticData(
+                    start=local_start_date,
+                    state=value,
+                    sum=current_sum,
                 )
+
+                # Validate the created object before adding to list
+                if (
+                    hasattr(stat_data, "start")
+                    and hasattr(stat_data, "state")
+                    and hasattr(stat_data, "sum")
+                ):
+                    statistics.append(stat_data)
+                else:
+                    _LOGGER.error(
+                        f"Created invalid StatisticData object: {type(stat_data)}, {stat_data}"
+                    )
+                    continue
 
             if statistics:
                 try:
                     # Log what we're about to insert for debugging
-                    date_range = (
-                        f"{statistics[0].start.date()} to {statistics[-1].start.date()}"
-                        if len(statistics) > 1
-                        else str(statistics[0].start.date())
-                    )
+                    # Add type checking to handle any unexpected data formats
+                    try:
+                        if len(statistics) > 1:
+                            # Ensure we have StatisticData objects with start attribute
+                            if hasattr(statistics[0], "start") and hasattr(
+                                statistics[-1], "start"
+                            ):
+                                date_range = f"{statistics[0].start.date()} to {statistics[-1].start.date()}"
+                            else:
+                                date_range = f"{len(statistics)} statistics (unable to determine date range)"
+                        elif hasattr(statistics[0], "start"):
+                            date_range = str(statistics[0].start.date())
+                        else:
+                            date_range = "1 statistic (unable to determine date)"
+                    except (IndexError, AttributeError) as e:
+                        _LOGGER.debug(f"Error formatting statistics date range: {e}")
+                        date_range = f"{len(statistics)} statistics"
+
                     _LOGGER.debug(
                         f"Inserting {len(statistics)} {metric_type} statistics for dates: {date_range}"
                     )
