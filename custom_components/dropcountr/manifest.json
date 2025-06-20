@@ -1,6 +1,7 @@
 {
   "domain": "dropcountr",
   "name": "DropCountr",
+  "after_dependencies": ["recorder"],
   "codeowners": ["@mcolyer"],
   "config_flow": true,
   "documentation": "https://github.com/mcolyer/pydropcountr",

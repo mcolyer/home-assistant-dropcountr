@@ -8,7 +8,7 @@ authors = [
 requires-python = ">= 3.13.2"
 dependencies = [
     "async-timeout>4.0.3",
-    "homeassistant==2025.6.0",
+    "homeassistant==2025.6.1",
     "pydropcountr==0.1.2",
 ]
 

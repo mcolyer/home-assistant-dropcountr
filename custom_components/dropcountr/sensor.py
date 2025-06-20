@@ -46,7 +46,7 @@ DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.MEASUREMENT,
+        state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="weekly_total",
@@ -54,7 +54,7 @@ DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.MEASUREMENT,
+        state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="monthly_total",
@@ -62,7 +62,7 @@ DROPCOUNTR_SENSORS: tuple[SensorEntityDescription, ...] = (
         suggested_display_precision=2,
         native_unit_of_measurement=UnitOfVolume.GALLONS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.MEASUREMENT,
+        state_class=SensorStateClass.TOTAL_INCREASING,
     ),
 )
 
