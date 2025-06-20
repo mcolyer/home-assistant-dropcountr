@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-06-20
+
 ### Changed
 - **BREAKING**: Improved thread safety across the integration requiring Home Assistant 2025.6.0+
 - Optimized API call efficiency with intelligent 5-minute caching, reducing redundant service connection requests by 60-70%
