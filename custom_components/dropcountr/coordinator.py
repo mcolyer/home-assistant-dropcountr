@@ -136,6 +136,7 @@ class DropCountrUsageDataUpdateCoordinator(
             int, set[str]
         ] = {}  # Track what we've inserted per service
         self._cache_lock = threading.Lock()  # Thread-safe cache access
+        self._state_lock = threading.Lock()  # Thread-safe shared state access
 
     def _raise_cache_failure(self, message: str) -> None:
         """Raise cache failure exception."""
@@ -268,12 +269,33 @@ class DropCountrUsageDataUpdateCoordinator(
 
     def _get_historical_state(self, service_connection_id: int) -> dict[str, Any]:
         """Get historical state for a service connection."""
-        if service_connection_id not in self._historical_state:
-            self._historical_state[service_connection_id] = {
-                LAST_SEEN_DATES_KEY: set(),
-                LAST_UPDATE_KEY: None,
-            }
-        return self._historical_state[service_connection_id]
+        with self._state_lock:
+            if service_connection_id not in self._historical_state:
+                self._historical_state[service_connection_id] = {
+                    LAST_SEEN_DATES_KEY: set(),
+                    LAST_UPDATE_KEY: None,
+                }
+            return self._historical_state[service_connection_id]
+
+    def _check_and_mark_statistics_inserted(
+        self, service_connection_id: int, insertion_key: str
+    ) -> bool:
+        """Thread-safe check and mark for statistics insertion tracking."""
+        with self._state_lock:
+            if service_connection_id not in self._statistics_inserted_this_session:
+                self._statistics_inserted_this_session[service_connection_id] = set()
+
+            if (
+                insertion_key
+                in self._statistics_inserted_this_session[service_connection_id]
+            ):
+                return True  # Already inserted
+
+            # Mark as inserted
+            self._statistics_inserted_this_session[service_connection_id].add(
+                insertion_key
+            )
+            return False  # Not previously inserted
 
     def _detect_new_historical_data(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -366,19 +388,14 @@ class DropCountrUsageDataUpdateCoordinator(
             },
         }
 
-        # Track what we've inserted in this session to prevent duplicates
-        if service_connection_id not in self._statistics_inserted_this_session:
-            self._statistics_inserted_this_session[service_connection_id] = set()
-
         # Process each metric type
         for metric_type, config in statistics_config.items():
             statistic_id = config["id"]
 
-            # Create a key to track this specific insertion
+            # Create a key to track this specific insertion and check if already processed
             insertion_key = f"{metric_type}_{min(data.start_date.date() for data in historical_data)}_{max(data.start_date.date() for data in historical_data)}"
-            if (
-                insertion_key
-                in self._statistics_inserted_this_session[service_connection_id]
+            if self._check_and_mark_statistics_inserted(
+                service_connection_id, insertion_key
             ):
                 _LOGGER.debug(
                     f"Skipping {metric_type} statistics insertion for service {service_connection_id}: already inserted in this session"
@@ -500,10 +517,6 @@ class DropCountrUsageDataUpdateCoordinator(
                     _LOGGER.debug(
                         f"Successfully inserted {len(statistics)} {metric_type} statistics"
                     )
-                    # Mark this insertion as completed to prevent duplicates
-                    self._statistics_inserted_this_session[service_connection_id].add(
-                        insertion_key
-                    )
                 except Exception as ex:
                     _LOGGER.error(
                         f"Failed to insert {metric_type} statistics: {ex}",
@@ -523,36 +536,42 @@ class DropCountrUsageDataUpdateCoordinator(
         if not usage_response or not usage_response.usage_data:
             return
 
-        historical_state = self._get_historical_state(service_connection_id)
         current_date = datetime.now().date()
-
-        # Add only dates that are worth tracking (not too old, not future)
         cutoff_date = current_date - timedelta(days=60)  # Keep only last 60 days
-        new_dates = set()
 
+        # Collect new dates to add
+        new_dates = set()
         for usage_data in usage_response.usage_data:
             usage_date = usage_data.start_date.date()
             # Only track dates that are within our retention window
             if cutoff_date <= usage_date <= current_date:
                 new_dates.add(usage_date)
 
-        # Merge with existing dates and apply retention policy in one operation
-        existing_dates = historical_state[LAST_SEEN_DATES_KEY]
-        historical_state[LAST_SEEN_DATES_KEY] = (existing_dates | new_dates) & {
-            date for date in (existing_dates | new_dates) if date > cutoff_date
-        }
+        # Thread-safe update of historical state
+        with self._state_lock:
+            if service_connection_id not in self._historical_state:
+                self._historical_state[service_connection_id] = {
+                    LAST_SEEN_DATES_KEY: set(),
+                    LAST_UPDATE_KEY: None,
+                }
 
-        # Update the last update timestamp
-        historical_state[LAST_UPDATE_KEY] = datetime.now()
+            historical_state = self._historical_state[service_connection_id]
 
-        # Log memory usage periodically (every 10th update)
-        if (
-            len(historical_state[LAST_SEEN_DATES_KEY]) > 0
-            and len(historical_state[LAST_SEEN_DATES_KEY]) % 10 == 0
-        ):
-            _LOGGER.debug(
-                f"Historical state memory: service {service_connection_id} tracking {len(historical_state[LAST_SEEN_DATES_KEY])} dates"
-            )
+            # Merge with existing dates and apply retention policy in one atomic operation
+            existing_dates = historical_state[LAST_SEEN_DATES_KEY]
+            historical_state[LAST_SEEN_DATES_KEY] = (existing_dates | new_dates) & {
+                date for date in (existing_dates | new_dates) if date > cutoff_date
+            }
+
+            # Update the last update timestamp
+            historical_state[LAST_UPDATE_KEY] = datetime.now()
+
+            # Log memory usage periodically (every 10th update)
+            dates_count = len(historical_state[LAST_SEEN_DATES_KEY])
+            if dates_count > 0 and dates_count % 10 == 0:
+                _LOGGER.debug(
+                    f"Historical state memory: service {service_connection_id} tracking {dates_count} dates"
+                )
 
     def _cleanup_historical_state(self) -> None:
         """Periodic cleanup of historical state to prevent memory growth."""
@@ -560,16 +579,19 @@ class DropCountrUsageDataUpdateCoordinator(
         services_cleaned = 0
         dates_removed = 0
 
-        for _service_id, state in self._historical_state.items():
-            if LAST_SEEN_DATES_KEY in state:
-                original_count = len(state[LAST_SEEN_DATES_KEY])
-                state[LAST_SEEN_DATES_KEY] = {
-                    date for date in state[LAST_SEEN_DATES_KEY] if date > cutoff_date
-                }
-                removed = original_count - len(state[LAST_SEEN_DATES_KEY])
-                if removed > 0:
-                    services_cleaned += 1
-                    dates_removed += removed
+        with self._state_lock:
+            for _service_id, state in self._historical_state.items():
+                if LAST_SEEN_DATES_KEY in state:
+                    original_count = len(state[LAST_SEEN_DATES_KEY])
+                    state[LAST_SEEN_DATES_KEY] = {
+                        date
+                        for date in state[LAST_SEEN_DATES_KEY]
+                        if date > cutoff_date
+                    }
+                    removed = original_count - len(state[LAST_SEEN_DATES_KEY])
+                    if removed > 0:
+                        services_cleaned += 1
+                        dates_removed += removed
 
         if services_cleaned > 0:
             _LOGGER.debug(

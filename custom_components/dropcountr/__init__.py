@@ -108,7 +108,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -
 
 async def async_unload_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -> bool:
     """Unload a config entry."""
-    entry.runtime_data.client.logout()
+    # Run logout in executor context to avoid blocking main event loop
+    await hass.async_add_executor_job(entry.runtime_data.client.logout)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
@@ -126,9 +127,12 @@ def setup_service(hass: HomeAssistant) -> None:
             raise ValueError(f"Invalid config entry: {entry_id}")
         if not entry.state == ConfigEntryState.LOADED:
             raise ValueError(f"Config entry not loaded: {entry_id}")
-        return {
-            "usage_data": entry.runtime_data.usage_coordinator.usage_data  # type: ignore[dict-item]
-        }
+        # Thread-safe copy of usage data
+        coordinator = entry.runtime_data.usage_coordinator
+        with coordinator._state_lock:
+            return {
+                "usage_data": coordinator.usage_data.copy()  # type: ignore[dict-item]
+            }
 
     async def get_service_connection(call: ServiceCall) -> ServiceResponse:
         """Return details for a specific service connection."""
