@@ -162,6 +162,12 @@ class DropCountrUsageDataUpdateCoordinator(
 
         new_historical_data = []
         current_date = datetime.now().date()
+        current_date_utc = datetime.now(UTC).date()
+
+        _LOGGER.debug(
+            f"Historical data detection for service {service_connection_id}: "
+            f"current_date_local={current_date}, current_date_utc={current_date_utc}"
+        )
 
         for usage_data in usage_response.usage_data:
             # Convert start_date to date for comparison
@@ -171,17 +177,27 @@ class DropCountrUsageDataUpdateCoordinator(
             is_new_data = usage_date not in last_seen_dates
             is_historical = (current_date - usage_date).days > 1
 
+            _LOGGER.debug(
+                f"Processing usage data for service {service_connection_id}: "
+                f"usage_date={usage_date} (from {usage_data.start_date}), "
+                f"is_new={is_new_data}, is_historical={is_historical} "
+                f"(days_old={(current_date - usage_date).days}), "
+                f"total_gallons={usage_data.total_gallons}"
+            )
+
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)
                 _LOGGER.info(
                     f"Detected new historical data for service {service_connection_id}: "
-                    f"{usage_date} ({(current_date - usage_date).days} days old), "
+                    f"usage_date={usage_date} (from UTC {usage_data.start_date}), "
+                    f"days_old={(current_date - usage_date).days}, "
                     f"total_gallons={usage_data.total_gallons}"
                 )
             elif is_new_data:
                 _LOGGER.debug(
                     f"Detected new recent data (not historical) for service {service_connection_id}: "
-                    f"{usage_date} ({(current_date - usage_date).days} days old)"
+                    f"usage_date={usage_date} (from UTC {usage_data.start_date}), "
+                    f"days_old={(current_date - usage_date).days}"
                 )
 
         return new_historical_data
@@ -226,6 +242,18 @@ class DropCountrUsageDataUpdateCoordinator(
 
         _LOGGER.info(
             f"Starting statistics insertion for {len(historical_data)} historical data points"
+        )
+
+        # Log timezone context for debugging
+        current_time = datetime.now()
+        current_time_utc = datetime.now(UTC)
+        local_time = dt_util.as_local(current_time_utc)
+        _LOGGER.debug(
+            f"Timezone context: "
+            f"system_now={current_time} (naive), "
+            f"utc_now={current_time_utc}, "
+            f"ha_local_now={local_time} (tzinfo={local_time.tzinfo}), "
+            f"ha_timezone={dt_util.DEFAULT_TIME_ZONE}"
         )
 
         # Create statistic IDs and metadata
@@ -320,13 +348,30 @@ class DropCountrUsageDataUpdateCoordinator(
             current_sum = existing_sum
 
             for usage_data in historical_data:
+                # Log the original data from PyDropCountr
+                _LOGGER.debug(
+                    f"Processing historical data for {metric_type}: "
+                    f"start_date={usage_data.start_date} (type={type(usage_data.start_date)}, "
+                    f"tzinfo={usage_data.start_date.tzinfo}), "
+                    f"date()={usage_data.start_date.date()}"
+                )
+
                 # Convert UTC timestamp to Home Assistant's local timezone for consistency
                 local_start_date = dt_util.as_local(usage_data.start_date)
+
+                _LOGGER.debug(
+                    f"Timezone conversion for {metric_type}: "
+                    f"UTC={usage_data.start_date} -> Local={local_start_date} "
+                    f"(local_tzinfo={local_start_date.tzinfo}), "
+                    f"timestamp={local_start_date.timestamp()}, "
+                    f"date()={local_start_date.date()}"
+                )
 
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
                     _LOGGER.debug(
-                        f"Skipping already processed data for {metric_type}: {usage_data.start_date} (UTC) -> {local_start_date} (local)"
+                        f"Skipping already processed data for {metric_type}: "
+                        f"timestamp={local_start_date.timestamp()} <= last_time={last_time}"
                     )
                     continue
 
@@ -343,7 +388,11 @@ class DropCountrUsageDataUpdateCoordinator(
                 current_sum += value
 
                 _LOGGER.debug(
-                    f"Creating {metric_type} statistic: date={usage_data.start_date} (UTC) -> {local_start_date} (local), value={value}, sum={current_sum}"
+                    f"Creating {metric_type} statistic: "
+                    f"original_date={usage_data.start_date} (UTC), "
+                    f"local_date={local_start_date} (Local), "
+                    f"date_display={local_start_date.date()}, "
+                    f"value={value}, sum={current_sum}"
                 )
 
                 statistics.append(
@@ -355,6 +404,14 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
 
             if statistics:
+                # Log the final statistics being inserted
+                _LOGGER.debug(f"Final {metric_type} statistics to insert:")
+                for i, stat in enumerate(statistics):
+                    _LOGGER.debug(
+                        f"  [{i}] start={stat.start} (tzinfo={stat.start.tzinfo}), "
+                        f"date={stat.start.date()}, state={stat.state}, sum={stat.sum}"
+                    )
+
                 try:
                     _LOGGER.info(
                         f"Inserting {len(statistics)} {metric_type} statistics for service {service_connection_id}"
