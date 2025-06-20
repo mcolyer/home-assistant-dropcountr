@@ -298,7 +298,6 @@ class DropCountrUsageDataUpdateCoordinator(
                 last_time = last_stat[statistic_id][0]["start"]
 
                 # Convert last_time to datetime for easier comparison
-
                 if isinstance(last_time, (int, float)):
                     last_time_dt = datetime.fromtimestamp(last_time, tz=UTC)
                 else:
@@ -311,17 +310,26 @@ class DropCountrUsageDataUpdateCoordinator(
                     f"Continuing {metric_type} statistics from {last_time_dt}, sum={existing_sum}"
                 )
 
-                # Check if the last processed time is in the future (indicating corrupted data)
+                # For date comparisons, use the date part only to avoid timezone issues
+                # Convert the oldest historical date to the same timezone as last_time_dt for fair comparison
                 oldest_historical_date = min(
                     usage_data.start_date for usage_data in historical_data
                 )
-                # Ensure both datetimes have timezone info for comparison
-                if oldest_historical_date.tzinfo is None:
-                    oldest_historical_date = oldest_historical_date.replace(tzinfo=UTC)
 
-                if last_time_dt > oldest_historical_date:
+                # Convert oldest historical date to local timezone for comparison
+                oldest_historical_local = dt_util.as_local(oldest_historical_date)
+
+                _LOGGER.debug(
+                    f"Timezone comparison for {metric_type}: "
+                    f"last_time_dt={last_time_dt} ({last_time_dt.date()}), "
+                    f"oldest_historical_utc={oldest_historical_date} ({oldest_historical_date.date()}), "
+                    f"oldest_historical_local={oldest_historical_local} ({oldest_historical_local.date()})"
+                )
+
+                # Compare using dates only to avoid timezone precision issues
+                if last_time_dt.date() > oldest_historical_local.date():
                     _LOGGER.warning(
-                        f"Last processed time ({last_time_dt}) is newer than historical data ({oldest_historical_date}). "
+                        f"Last processed date ({last_time_dt.date()}) is newer than oldest historical date ({oldest_historical_local.date()}). "
                         f"This may indicate corrupted statistics. Resetting to process historical data."
                     )
                     # Reset to allow historical data processing
@@ -356,8 +364,12 @@ class DropCountrUsageDataUpdateCoordinator(
                     f"date()={usage_data.start_date.date()}"
                 )
 
-                # Convert UTC timestamp to Home Assistant's local timezone for consistency
-                local_start_date = dt_util.as_local(usage_data.start_date)
+                # Preserve the date from PyDropCountr and create local midnight for that date
+                # This avoids timezone shifting that could move data to wrong day
+                usage_date = usage_data.start_date.date()
+                local_start_date = dt_util.start_of_local_day(
+                    datetime.combine(usage_date, datetime.min.time())
+                )
 
                 _LOGGER.debug(
                     f"Timezone conversion for {metric_type}: "
@@ -407,10 +419,15 @@ class DropCountrUsageDataUpdateCoordinator(
                 # Log the final statistics being inserted
                 _LOGGER.debug(f"Final {metric_type} statistics to insert:")
                 for i, stat in enumerate(statistics):
-                    _LOGGER.debug(
-                        f"  [{i}] start={stat.start} (tzinfo={stat.start.tzinfo}), "
-                        f"date={stat.start.date()}, state={stat.state}, sum={stat.sum}"
-                    )
+                    if hasattr(stat, "start"):
+                        _LOGGER.debug(
+                            f"  [{i}] start={stat.start} (tzinfo={stat.start.tzinfo}), "
+                            f"date={stat.start.date()}, state={stat.state}, sum={stat.sum}"
+                        )
+                    else:
+                        _LOGGER.debug(
+                            f"  [{i}] {stat}"
+                        )  # Log raw dict if not StatisticData object
 
                 try:
                     _LOGGER.info(
