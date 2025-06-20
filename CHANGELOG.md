@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-01-20
+
+### Changed
+- Optimized debug logging to reduce log volume by ~70% while maintaining debugging capabilities
+- Streamlined statistics insertion logging from 15+ to 3 key logs per metric type
+- Simplified sensor and binary sensor debug output to focus on essential insights only
+- Enhanced monthly usage calculation logging to be more concise and informative
+
+### Added
+- Strategic API performance tracking with request timing and data volume metrics
+- Usage data update cycle monitoring with detailed service/record counts and timing
+- Enhanced service call performance logging with contextual information
+- Production-optimized logging to understand data fetching patterns for optimization
+
+### Fixed
+- Removed verbose per-data-point debug logs that were impacting performance
+- Eliminated redundant timezone debugging in nested processing loops
+- Reduced unnecessary logging in coordinator historical data detection
+- Simplified binary sensor connection status logging to only log when disconnected
+
+### Technical Improvements
+- Preserved critical leak detection warnings and connection status alerts
+- Added comprehensive performance metrics for production monitoring
+- Improved maintainability with focused, purposeful logging
+- Enhanced service performance tracking for `get_service_connection` and `get_hourly_usage`
+
 ## [0.1.1] - 2025-01-20
 
 ### Fixed
