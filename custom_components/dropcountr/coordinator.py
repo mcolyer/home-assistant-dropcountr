@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import threading
 import time
 from typing import Any
 
@@ -134,6 +135,7 @@ class DropCountrUsageDataUpdateCoordinator(
         self._statistics_inserted_this_session: dict[
             int, set[str]
         ] = {}  # Track what we've inserted per service
+        self._cache_lock = threading.Lock()  # Thread-safe cache access
 
     def _raise_cache_failure(self, message: str) -> None:
         """Raise cache failure exception."""
@@ -143,16 +145,33 @@ class DropCountrUsageDataUpdateCoordinator(
         """Get service connections from cache or fetch fresh if cache is expired."""
         now = datetime.now()
 
-        # Check if cache is valid
-        if (
-            self._cached_service_connections is not None
-            and self._service_connections_cache_time is not None
-            and now - self._service_connections_cache_time < self._cache_duration
-        ):
-            _LOGGER.debug(
-                f"Using cached service connections ({len(self._cached_service_connections)} connections)"
+        # Thread-safe cache check
+        with self._cache_lock:
+            # Check if cache is valid
+            if (
+                self._cached_service_connections is not None
+                and self._service_connections_cache_time is not None
+                and now - self._service_connections_cache_time < self._cache_duration
+            ):
+                _LOGGER.debug(
+                    f"Using cached service connections ({len(self._cached_service_connections)} connections)"
+                )
+                return (
+                    self._cached_service_connections.copy()
+                )  # Return copy to prevent mutations
+
+            # Check if someone else is already fetching (avoid duplicate API calls)
+            cache_expired = (
+                self._cached_service_connections is None
+                or self._service_connections_cache_time is None
+                or now - self._service_connections_cache_time >= self._cache_duration
             )
-            return self._cached_service_connections
+
+        if not cache_expired:
+            # Another thread updated the cache while we were waiting
+            with self._cache_lock:
+                if self._cached_service_connections is not None:
+                    return self._cached_service_connections.copy()
 
         # Cache expired or not set, fetch fresh data
         _LOGGER.debug("Fetching fresh service connections (cache expired or not set)")
@@ -168,16 +187,18 @@ class DropCountrUsageDataUpdateCoordinator(
                     f"API call to list_service_connections failed (took {elapsed:.2f}s)"
                 )
                 # Return cached data if available, even if expired
-                if self._cached_service_connections is not None:
-                    _LOGGER.info(
-                        "Returning expired cached service connections due to API failure"
-                    )
-                    return self._cached_service_connections
+                with self._cache_lock:
+                    if self._cached_service_connections is not None:
+                        _LOGGER.info(
+                            "Returning expired cached service connections due to API failure"
+                        )
+                        return self._cached_service_connections.copy()
                 self._raise_cache_failure("Failed to get service connections")
             else:
-                # Update cache
-                self._cached_service_connections = service_connections
-                self._service_connections_cache_time = now
+                # Thread-safe cache update
+                with self._cache_lock:
+                    self._cached_service_connections = service_connections
+                    self._service_connections_cache_time = now
                 _LOGGER.debug(
                     f"Cached {len(service_connections)} service connections in {elapsed:.2f}s"
                 )
@@ -189,11 +210,12 @@ class DropCountrUsageDataUpdateCoordinator(
                 f"API call to list_service_connections failed after {elapsed:.2f}s: {ex}"
             )
             # Return cached data if available, even if expired
-            if self._cached_service_connections is not None:
-                _LOGGER.info(
-                    "Returning expired cached service connections due to API error"
-                )
-                return self._cached_service_connections
+            with self._cache_lock:
+                if self._cached_service_connections is not None:
+                    _LOGGER.info(
+                        "Returning expired cached service connections due to API error"
+                    )
+                    return self._cached_service_connections.copy()
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
 
     def _get_usage_for_service(
