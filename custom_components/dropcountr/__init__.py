@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import time
 
 from pydropcountr import DropCountrClient
 from requests.exceptions import RequestException
@@ -20,7 +21,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.selector import ConfigEntrySelector
 
-from .const import DOMAIN, PLATFORMS
+from .const import _LOGGER, DOMAIN, PLATFORMS
 from .coordinator import (
     DropCountrConfigEntry,
     DropCountrRuntimeData,
@@ -131,8 +132,13 @@ def setup_service(hass: HomeAssistant) -> None:
 
     async def get_service_connection(call: ServiceCall) -> ServiceResponse:
         """Return details for a specific service connection."""
+        start_time = time.time()
         entry_id: str = call.data[CONF_CONFIG_ENTRY]
         service_connection_id: int = call.data[CONF_SERVICE_CONNECTION_ID]
+
+        _LOGGER.debug(
+            f"Service call: get_service_connection for service {service_connection_id}"
+        )
 
         entry: DropCountrConfigEntry | None = hass.config_entries.async_get_entry(
             entry_id
@@ -146,23 +152,34 @@ def setup_service(hass: HomeAssistant) -> None:
             service_connection = await hass.async_add_executor_job(
                 entry.runtime_data.client.get_service_connection, service_connection_id
             )
+            elapsed = time.time() - start_time
+            _LOGGER.debug(f"Service get_service_connection completed in {elapsed:.2f}s")
             return {
                 "service_connection": service_connection.model_dump()
                 if service_connection
                 else None
             }
         except Exception as ex:
+            elapsed = time.time() - start_time
+            _LOGGER.error(
+                f"Service get_service_connection failed after {elapsed:.2f}s: {ex}"
+            )
             raise ValueError(
                 f"Error getting service connection {service_connection_id}: {ex}"
             ) from ex
 
     async def get_hourly_usage(call: ServiceCall) -> ServiceResponse:
         """Return hourly usage data for a specific service connection."""
+        start_time = time.time()
 
         entry_id: str = call.data[CONF_CONFIG_ENTRY]
         service_connection_id: int = call.data[CONF_SERVICE_CONNECTION_ID]
         start_date = call.data.get(CONF_START_DATE)
         end_date = call.data.get(CONF_END_DATE)
+
+        _LOGGER.debug(
+            f"Service call: get_hourly_usage for service {service_connection_id}"
+        )
 
         entry: DropCountrConfigEntry | None = hass.config_entries.async_get_entry(
             entry_id
@@ -191,6 +208,15 @@ def setup_service(hass: HomeAssistant) -> None:
                 end_dt,
                 "hour",  # Use hourly granularity
             )
+            elapsed = time.time() - start_time
+            data_count = (
+                len(usage_response.usage_data)
+                if usage_response and usage_response.usage_data
+                else 0
+            )
+            _LOGGER.debug(
+                f"Service get_hourly_usage completed in {elapsed:.2f}s ({data_count} data points)"
+            )
             return {
                 "usage_data": usage_response.model_dump() if usage_response else None,
                 "start_date": start_dt.isoformat(),
@@ -198,6 +224,8 @@ def setup_service(hass: HomeAssistant) -> None:
                 "granularity": "hour",
             }
         except Exception as ex:
+            elapsed = time.time() - start_time
+            _LOGGER.error(f"Service get_hourly_usage failed after {elapsed:.2f}s: {ex}")
             raise ValueError(
                 f"Error getting hourly usage for service {service_connection_id}: {ex}"
             ) from ex

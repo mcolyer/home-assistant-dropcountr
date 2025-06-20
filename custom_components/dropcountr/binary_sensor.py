@@ -11,6 +11,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import _LOGGER
 from .coordinator import DropCountrConfigEntry, DropCountrUsageDataUpdateCoordinator
 from .entity import DropCountrEntity
 
@@ -100,21 +101,47 @@ class DropCountrBinarySensor(
     def _get_leak_status(self) -> bool:
         """Check if there's a leak detected."""
         if not self.coordinator.data:
+            _LOGGER.debug(
+                f"No coordinator data for leak detection on service {self.service_connection_id}"
+            )
             return False
 
         usage_response = self.coordinator.data.get(self.service_connection_id)
         if not usage_response or not usage_response.usage_data:
+            _LOGGER.debug(
+                f"No usage data for leak detection on service {self.service_connection_id}"
+            )
             return False
 
         # Check the most recent usage data for leak status
         latest_data = usage_response.usage_data[-1]
-        return latest_data.is_leaking
+        leak_status = latest_data.is_leaking
+
+        if leak_status:
+            _LOGGER.warning(
+                f"LEAK DETECTED on service {self.service_connection_id} (date: {latest_data.start_date.date()})"
+            )
+        else:
+            _LOGGER.debug(f"No leak detected on service {self.service_connection_id}")
+
+        return leak_status
 
     def _get_connection_status(self) -> bool:
         """Check if the service connection is active."""
         if not self.coordinator.data:
+            _LOGGER.debug(
+                f"No coordinator data for connection status on service {self.service_connection_id}"
+            )
             return False
 
         # If we have recent data, consider the connection active
         usage_response = self.coordinator.data.get(self.service_connection_id)
-        return usage_response is not None and len(usage_response.usage_data) > 0
+        is_connected = usage_response is not None and len(usage_response.usage_data) > 0
+
+        _LOGGER.debug(
+            f"Connection status for service {self.service_connection_id}: "
+            f"{'connected' if is_connected else 'disconnected'} "
+            f"({len(usage_response.usage_data) if usage_response else 0} data points)"
+        )
+
+        return is_connected

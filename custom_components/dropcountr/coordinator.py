@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import time
 from typing import Any
 
 from pydropcountr import DropCountrClient, ServiceConnection, UsageData, UsageResponse
@@ -75,15 +76,27 @@ class DropCountrServiceConnectionDataUpdateCoordinator(
 
     async def _async_update_data(self) -> list[ServiceConnection]:
         """Get the latest service connections from DropCountr."""
+        start_time = time.time()
         try:
             service_connections = await self.hass.async_add_executor_job(
                 self.client.list_service_connections
             )
+            elapsed = time.time() - start_time
             if service_connections is None:
+                _LOGGER.warning(
+                    f"API call to list_service_connections failed (took {elapsed:.2f}s)"
+                )
                 self._raise_update_failed("Failed to get service connections")
             else:
+                _LOGGER.debug(
+                    f"Retrieved {len(service_connections)} service connections in {elapsed:.2f}s"
+                )
                 return service_connections
         except Exception as ex:
+            elapsed = time.time() - start_time
+            _LOGGER.error(
+                f"API call to list_service_connections failed after {elapsed:.2f}s: {ex}"
+            )
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
 
 
@@ -117,6 +130,7 @@ class DropCountrUsageDataUpdateCoordinator(
         self, service_connection_id: int
     ) -> UsageResponse | None:
         """Get usage data for a specific service connection."""
+        start_time = time.time()
         try:
             # Get usage from the start of current month to ensure monthly totals are accurate
             end_date = datetime.now(UTC)
@@ -129,15 +143,28 @@ class DropCountrUsageDataUpdateCoordinator(
                 f"Requesting usage data for service {service_connection_id} from {start_date.date()} to {end_date.date()}"
             )
 
-            return self.client.get_usage(
+            result = self.client.get_usage(
                 service_connection_id=service_connection_id,
                 start_date=start_date,
                 end_date=end_date,
                 period="day",
             )
+
+            elapsed = time.time() - start_time
+            if result and result.usage_data:
+                _LOGGER.debug(
+                    f"Retrieved {len(result.usage_data)} usage data points for service {service_connection_id} in {elapsed:.2f}s"
+                )
+                return result
+            else:
+                _LOGGER.warning(
+                    f"No usage data returned for service {service_connection_id} (took {elapsed:.2f}s)"
+                )
+                return result
         except Exception as ex:
+            elapsed = time.time() - start_time
             _LOGGER.error(
-                f"Error getting usage for service {service_connection_id}: {ex}"
+                f"Error getting usage for service {service_connection_id} after {elapsed:.2f}s: {ex}"
             )
             return None
 
@@ -162,11 +189,9 @@ class DropCountrUsageDataUpdateCoordinator(
 
         new_historical_data = []
         current_date = datetime.now().date()
-        current_date_utc = datetime.now(UTC).date()
 
         _LOGGER.debug(
-            f"Historical data detection for service {service_connection_id}: "
-            f"current_date_local={current_date}, current_date_utc={current_date_utc}"
+            f"Checking for new historical data for service {service_connection_id}"
         )
 
         for usage_data in usage_response.usage_data:
@@ -184,14 +209,6 @@ class DropCountrUsageDataUpdateCoordinator(
                 days_old == 1 and usage_data.total_gallons > 0
             )
 
-            _LOGGER.debug(
-                f"Processing usage data for service {service_connection_id}: "
-                f"usage_date={usage_date} (from {usage_data.start_date}), "
-                f"is_new={is_new_data}, is_historical={is_historical} "
-                f"(days_old={(current_date - usage_date).days}), "
-                f"total_gallons={usage_data.total_gallons}"
-            )
-
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)
                 _LOGGER.info(
@@ -200,12 +217,11 @@ class DropCountrUsageDataUpdateCoordinator(
                     f"days_old={(current_date - usage_date).days}, "
                     f"total_gallons={usage_data.total_gallons}"
                 )
-            elif is_new_data:
-                _LOGGER.debug(
-                    f"Detected new recent data (not historical) for service {service_connection_id}: "
-                    f"usage_date={usage_date} (from UTC {usage_data.start_date}), "
-                    f"days_old={(current_date - usage_date).days}"
-                )
+
+        if new_historical_data:
+            _LOGGER.debug(
+                f"Found {len(new_historical_data)} new historical data points for service {service_connection_id}"
+            )
 
         return new_historical_data
 
@@ -251,18 +267,6 @@ class DropCountrUsageDataUpdateCoordinator(
             f"Starting statistics insertion for {len(historical_data)} historical data points"
         )
 
-        # Log timezone context for debugging
-        current_time = datetime.now()
-        current_time_utc = datetime.now(UTC)
-        local_time = dt_util.as_local(current_time_utc)
-        _LOGGER.debug(
-            f"Timezone context: "
-            f"system_now={current_time} (naive), "
-            f"utc_now={current_time_utc}, "
-            f"ha_local_now={local_time} (tzinfo={local_time.tzinfo}), "
-            f"ha_timezone={dt_util.DEFAULT_TIME_ZONE}"
-        )
-
         # Create statistic IDs and metadata
         id_prefix = f"dropcountr_{service_connection_id}"
         statistics_config = {
@@ -292,9 +296,6 @@ class DropCountrUsageDataUpdateCoordinator(
                 last_stat = await get_instance(self.hass).async_add_executor_job(
                     get_last_statistics, self.hass, 1, statistic_id, True, set()
                 )
-                _LOGGER.debug(
-                    f"Retrieved last statistics for {statistic_id}: {bool(last_stat)}"
-                )
             except Exception as ex:
                 _LOGGER.error(f"Failed to get last statistics for {statistic_id}: {ex}")
                 last_stat = {}
@@ -313,10 +314,6 @@ class DropCountrUsageDataUpdateCoordinator(
                     if last_time_dt.tzinfo is None:
                         last_time_dt = last_time_dt.replace(tzinfo=UTC)
 
-                _LOGGER.debug(
-                    f"Continuing {metric_type} statistics from {last_time_dt}, sum={existing_sum}"
-                )
-
                 # For date comparisons, use the date part only to avoid timezone issues
                 # Convert the oldest historical date to the same timezone as last_time_dt for fair comparison
                 oldest_historical_date = min(
@@ -325,13 +322,6 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 # Convert oldest historical date to local timezone for comparison
                 oldest_historical_local = dt_util.as_local(oldest_historical_date)
-
-                _LOGGER.debug(
-                    f"Timezone comparison for {metric_type}: "
-                    f"last_time_dt={last_time_dt} ({last_time_dt.date()}), "
-                    f"oldest_historical_utc={oldest_historical_date} ({oldest_historical_date.date()}), "
-                    f"oldest_historical_local={oldest_historical_local} ({oldest_historical_local.date()})"
-                )
 
                 # Compare using dates only to avoid timezone precision issues
                 if last_time_dt.date() > oldest_historical_local.date():
@@ -346,7 +336,6 @@ class DropCountrUsageDataUpdateCoordinator(
                 # Starting fresh
                 existing_sum = 0.0
                 last_time = 0
-                _LOGGER.debug(f"Starting {metric_type} statistics from scratch")
 
             # Create metadata
             metadata = StatisticMetaData(
@@ -363,14 +352,6 @@ class DropCountrUsageDataUpdateCoordinator(
             current_sum = existing_sum
 
             for usage_data in historical_data:
-                # Log the original data from PyDropCountr
-                _LOGGER.debug(
-                    f"Processing historical data for {metric_type}: "
-                    f"start_date={usage_data.start_date} (type={type(usage_data.start_date)}, "
-                    f"tzinfo={usage_data.start_date.tzinfo}), "
-                    f"date()={usage_data.start_date.date()}"
-                )
-
                 # Preserve the date from PyDropCountr and create local midnight for that date
                 # This avoids timezone shifting that could move data to wrong day
                 usage_date = usage_data.start_date.date()
@@ -378,20 +359,8 @@ class DropCountrUsageDataUpdateCoordinator(
                     datetime.combine(usage_date, datetime.min.time())
                 )
 
-                _LOGGER.debug(
-                    f"Timezone conversion for {metric_type}: "
-                    f"UTC={usage_data.start_date} -> Local={local_start_date} "
-                    f"(local_tzinfo={local_start_date.tzinfo}), "
-                    f"timestamp={local_start_date.timestamp()}, "
-                    f"date()={local_start_date.date()}"
-                )
-
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
-                    _LOGGER.debug(
-                        f"Skipping already processed data for {metric_type}: "
-                        f"timestamp={local_start_date.timestamp()} <= last_time={last_time}"
-                    )
                     continue
 
                 # Get the appropriate value for this metric
@@ -406,14 +375,6 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 current_sum += value
 
-                _LOGGER.debug(
-                    f"Creating {metric_type} statistic: "
-                    f"original_date={usage_data.start_date} (UTC), "
-                    f"local_date={local_start_date} (Local), "
-                    f"date_display={local_start_date.date()}, "
-                    f"value={value}, sum={current_sum}"
-                )
-
                 statistics.append(
                     StatisticData(
                         start=local_start_date,
@@ -423,25 +384,12 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
 
             if statistics:
-                # Log the final statistics being inserted
-                _LOGGER.debug(f"Final {metric_type} statistics to insert:")
-                for i, stat in enumerate(statistics):
-                    if hasattr(stat, "start"):
-                        _LOGGER.debug(
-                            f"  [{i}] start={stat.start} (tzinfo={stat.start.tzinfo}), "
-                            f"date={stat.start.date()}, state={stat.state}, sum={stat.sum}"
-                        )
-                    else:
-                        _LOGGER.debug(
-                            f"  [{i}] {stat}"
-                        )  # Log raw dict if not StatisticData object
-
                 try:
                     _LOGGER.info(
                         f"Inserting {len(statistics)} {metric_type} statistics for service {service_connection_id}"
                     )
                     async_add_external_statistics(self.hass, metadata, statistics)
-                    _LOGGER.info(f"Successfully inserted {metric_type} statistics")
+                    _LOGGER.debug(f"Successfully inserted {metric_type} statistics")
                 except Exception as ex:
                     _LOGGER.error(
                         f"Failed to insert {metric_type} statistics: {ex}",
@@ -476,25 +424,34 @@ class DropCountrUsageDataUpdateCoordinator(
 
     async def _async_update_data(self) -> dict[int, UsageResponse]:
         """Update usage data for all service connections."""
+        start_time = time.time()
+        _LOGGER.debug("Starting usage data update cycle")
+
         try:
             # First get all service connections
             service_connections = await self.hass.async_add_executor_job(
                 self.client.list_service_connections
             )
             if not service_connections:
+                _LOGGER.warning("No service connections found")
                 return {}
 
             usage_data = {}
+            processed_count = 0
+            historical_count = 0
+
             for service_connection in service_connections:
                 usage_response = await self.hass.async_add_executor_job(
                     self._get_usage_for_service, service_connection.id
                 )
                 if usage_response:
+                    processed_count += 1
                     # Detect and process historical data
                     historical_data = self._detect_new_historical_data(
                         service_connection.id, usage_response
                     )
                     if historical_data:
+                        historical_count += len(historical_data)
                         try:
                             await self._insert_historical_statistics(
                                 service_connection.id, historical_data
@@ -514,7 +471,14 @@ class DropCountrUsageDataUpdateCoordinator(
                     usage_data[service_connection.id] = usage_response
 
             self.usage_data = usage_data
+            elapsed = time.time() - start_time
+            _LOGGER.debug(
+                f"Completed usage data update: {processed_count}/{len(service_connections)} services processed, "
+                f"{historical_count} historical data points, took {elapsed:.2f}s"
+            )
         except Exception as ex:
+            elapsed = time.time() - start_time
+            _LOGGER.error(f"Usage data update failed after {elapsed:.2f}s: {ex}")
             raise UpdateFailed(f"Error communicating with DropCountr API: {ex}") from ex
         else:
             return usage_data
