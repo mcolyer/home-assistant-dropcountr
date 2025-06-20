@@ -1,35 +1,29 @@
-name: Release
+name: "Release"
 
 on:
   release:
-    types: [published]
+    types:
+      - "published"
+
+permissions: {}
 
 jobs:
   release:
-    name: Release
-    runs-on: ubuntu-latest
+    name: "Release"
+    runs-on: "ubuntu-latest"
+    permissions:
+      contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: "Checkout the repository"
+        uses: "actions/checkout@v4.1.0"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: "ZIP the integration directory"
+        shell: "bash"
+        run: |
+          cd "${{ github.workspace }}/custom_components/dropcountr"
+          zip dropcountr.zip -r ./
+
+      - name: "Upload the ZIP file to the release"
+        uses: softprops/action-gh-release@v0.1.15
         with:
-          python-version: "3.13.2"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Run tests
-        run: uv run pytest tests/ -v
-
-      - name: Run linting
-        run: uv run ruff check .
-
-      - name: Hassfest validation
-        uses: home-assistant/actions/hassfest@master
-        with:
-          path: "./custom_components/dropcountr"
+          files: ${{ github.workspace }}/custom_components/dropcountr/dropcountr.zip
