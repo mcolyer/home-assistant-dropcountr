@@ -463,7 +463,7 @@ class DropCountrUsageDataUpdateCoordinator(
             )
 
             # Create statistics data
-            statistics = []
+            statistics: list[StatisticData] = []
             current_sum = existing_sum
 
             for usage_data in historical_data:
@@ -493,25 +493,14 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 current_sum += value
 
-                # Create and validate StatisticData object
-                stat_data = StatisticData(
-                    start=local_start_date,
-                    state=value,
-                    sum=current_sum,
-                )
+                # Create StatisticData dictionary (TypedDict)
+                stat_data: StatisticData = {
+                    "start": local_start_date,
+                    "state": value,
+                    "sum": current_sum,
+                }
 
-                # Validate the created object before adding to list
-                if (
-                    hasattr(stat_data, "start")
-                    and hasattr(stat_data, "state")
-                    and hasattr(stat_data, "sum")
-                ):
-                    statistics.append(stat_data)
-                else:
-                    _LOGGER.error(
-                        f"Created invalid StatisticData object: {type(stat_data)}, {stat_data}"
-                    )
-                    continue
+                statistics.append(stat_data)
 
             if statistics:
                 try:
@@ -519,18 +508,16 @@ class DropCountrUsageDataUpdateCoordinator(
                     # Add type checking to handle any unexpected data formats
                     try:
                         if len(statistics) > 1:
-                            # Ensure we have StatisticData objects with start attribute
-                            if hasattr(statistics[0], "start") and hasattr(
-                                statistics[-1], "start"
-                            ):
-                                date_range = f"{statistics[0].start.date()} to {statistics[-1].start.date()}"
+                            # Ensure we have statistics dicts with start key
+                            if "start" in statistics[0] and "start" in statistics[-1]:
+                                date_range = f"{statistics[0]['start'].date()} to {statistics[-1]['start'].date()}"
                             else:
                                 date_range = f"{len(statistics)} statistics (unable to determine date range)"
-                        elif hasattr(statistics[0], "start"):
-                            date_range = str(statistics[0].start.date())
+                        elif "start" in statistics[0]:
+                            date_range = str(statistics[0]["start"].date())
                         else:
                             date_range = "1 statistic (unable to determine date)"
-                    except (IndexError, AttributeError) as e:
+                    except (IndexError, KeyError) as e:
                         _LOGGER.debug(f"Error formatting statistics date range: {e}")
                         date_range = f"{len(statistics)} statistics"
 
