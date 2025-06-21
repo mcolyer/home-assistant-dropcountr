@@ -25,7 +25,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.util import dt as dt_util
 
 from .const import (
     _LOGGER,
@@ -225,16 +224,14 @@ class DropCountrUsageDataUpdateCoordinator(
         """Get usage data for a specific service connection."""
         start_time = time.time()
         try:
-            # Get usage from the start of current month to ensure monthly totals are accurate
+            # Get hourly usage data for the last 7 days to provide detailed statistics
             end_date = datetime.now(UTC)
-            # Start from the beginning of the current month, or 45 days ago, whichever is earlier
-            # This ensures we get full month data plus some history for weekly totals
-            month_start = datetime(end_date.year, end_date.month, 1, tzinfo=UTC)
-            start_date = min(month_start, end_date - timedelta(days=45))
+            # Start from 7 days ago to get reasonable amount of hourly data
+            start_date = end_date - timedelta(days=7)
 
-            days_requested = (end_date - start_date).days
+            hours_requested = int((end_date - start_date).total_seconds() / 3600)
             _LOGGER.debug(
-                f"Fetching usage data for service {service_connection_id} ({days_requested} days)"
+                f"Fetching hourly usage data for service {service_connection_id} ({hours_requested} hours over 7 days)"
             )
 
             api_start = time.time()
@@ -242,7 +239,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 service_connection_id=service_connection_id,
                 start_date=start_date,
                 end_date=end_date,
-                period="day",
+                period="hour",
             )
             api_elapsed = time.time() - api_start
             total_elapsed = time.time() - start_time
@@ -250,13 +247,13 @@ class DropCountrUsageDataUpdateCoordinator(
             if result and result.usage_data:
                 records_count = len(result.usage_data)
                 _LOGGER.debug(
-                    f"API fetch: service {service_connection_id} returned {records_count} usage records "
+                    f"API fetch: service {service_connection_id} returned {records_count} hourly usage records "
                     f"(API: {api_elapsed:.3f}s, total: {total_elapsed:.3f}s, {records_count / api_elapsed:.1f} records/sec)"
                 )
                 return result
             else:
                 _LOGGER.warning(
-                    f"API fetch: service {service_connection_id} returned no data "
+                    f"API fetch: service {service_connection_id} returned no hourly data "
                     f"(API: {api_elapsed:.3f}s, total: {total_elapsed:.3f}s)"
                 )
                 return result
@@ -308,32 +305,38 @@ class DropCountrUsageDataUpdateCoordinator(
         last_seen_dates = historical_state[LAST_SEEN_DATES_KEY]
 
         new_historical_data = []
-        current_date = datetime.now().date()
+        current_datetime = datetime.now()
 
         for usage_data in usage_response.usage_data:
-            # Convert start_date to date for comparison
-            usage_date = usage_data.start_date.date()
+            # For hourly data, we need to compare datetime instead of just date
+            usage_datetime = (
+                usage_data.start_date.replace(tzinfo=None)
+                if usage_data.start_date.tzinfo
+                else usage_data.start_date
+            )
+            current_datetime_naive = current_datetime.replace(tzinfo=None)
+
+            # Create a unique key for this hour of data (datetime without seconds/microseconds)
+            usage_hour_key = usage_datetime.replace(minute=0, second=0, microsecond=0)
 
             # Check if this is new data and if it's historical
-            is_new_data = usage_date not in last_seen_dates
-            days_old = (current_date - usage_date).days
+            is_new_data = usage_hour_key not in last_seen_dates
+            hours_old = (current_datetime_naive - usage_datetime).total_seconds() / 3600
 
-            # Consider data historical if:
-            # - It's more than 1 day old, OR
-            # - It's exactly 1 day old (yesterday) and has non-zero total gallons
-            is_historical = days_old > 1 or (
-                days_old == 1 and usage_data.total_gallons > 0
-            )
+            # Consider hourly data historical if:
+            # - It's more than 2 hours old (to allow for processing delays)
+            # - AND it has some water usage (total_gallons > 0)
+            is_historical = hours_old > 2 and usage_data.total_gallons > 0
 
             if is_new_data and is_historical:
                 new_historical_data.append(usage_data)
 
         if new_historical_data:
-            # Sort by date for cleaner logging
-            new_historical_data.sort(key=lambda x: x.start_date.date())
+            # Sort by datetime for cleaner logging
+            new_historical_data.sort(key=lambda x: x.start_date)
             _LOGGER.info(
-                f"Found {len(new_historical_data)} new historical data points for service {service_connection_id} "
-                f"(date range: {new_historical_data[0].start_date.date()} to {new_historical_data[-1].start_date.date()})"
+                f"Found {len(new_historical_data)} new historical hourly data points for service {service_connection_id} "
+                f"(time range: {new_historical_data[0].start_date} to {new_historical_data[-1].start_date})"
             )
 
         return new_historical_data
@@ -365,25 +368,25 @@ class DropCountrUsageDataUpdateCoordinator(
 
         stats_start = time.time()
         _LOGGER.info(
-            f"Inserting statistics for {len(historical_data)} historical data points (service {service_connection_id})"
+            f"Inserting hourly statistics for {len(historical_data)} historical data points (service {service_connection_id})"
         )
 
         # Create statistic IDs and metadata
         id_prefix = f"dropcountr_{service_connection_id}"
         statistics_config = {
             "total_gallons": {
-                "id": f"{DOMAIN}:{id_prefix}_total_gallons",
-                "name": f"DropCountr {service_connection.name} Total Water Usage",
+                "id": f"{DOMAIN}:{id_prefix}_total_gallons_hourly",
+                "name": f"DropCountr {service_connection.name} Total Water Usage (Hourly)",
                 "unit": UnitOfVolume.GALLONS,
             },
             "irrigation_gallons": {
-                "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons",
-                "name": f"DropCountr {service_connection.name} Irrigation Water Usage",
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons_hourly",
+                "name": f"DropCountr {service_connection.name} Irrigation Water Usage (Hourly)",
                 "unit": UnitOfVolume.GALLONS,
             },
             "irrigation_events": {
-                "id": f"{DOMAIN}:{id_prefix}_irrigation_events",
-                "name": f"DropCountr {service_connection.name} Irrigation Events",
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_events_hourly",
+                "name": f"DropCountr {service_connection.name} Irrigation Events (Hourly)",
                 "unit": None,
             },
         }
@@ -393,7 +396,7 @@ class DropCountrUsageDataUpdateCoordinator(
             statistic_id = config["id"]
 
             # Create a key to track this specific insertion and check if already processed
-            insertion_key = f"{metric_type}_{min(data.start_date.date() for data in historical_data)}_{max(data.start_date.date() for data in historical_data)}"
+            insertion_key = f"{metric_type}_{min(data.start_date for data in historical_data)}_{max(data.start_date for data in historical_data)}"
             if self._check_and_mark_statistics_inserted(
                 service_connection_id, insertion_key
             ):
@@ -453,17 +456,21 @@ class DropCountrUsageDataUpdateCoordinator(
             current_sum = existing_sum
 
             for usage_data in historical_data:
-                # Preserve the date from PyDropCountr and create local midnight for that date
-                # This avoids timezone shifting that could move data to wrong day
-                usage_date = usage_data.start_date.date()
-                local_start_date = dt_util.start_of_local_day(
-                    datetime.combine(usage_date, datetime.min.time())
+                # For hourly data, preserve the actual hour from PyDropCountr
+                # Round to the start of the hour to ensure consistent timestamps
+                usage_datetime = usage_data.start_date
+                if usage_datetime.tzinfo is None:
+                    usage_datetime = usage_datetime.replace(tzinfo=UTC)
+
+                # Round to start of hour for consistent statistics
+                local_start_date = usage_datetime.replace(
+                    minute=0, second=0, microsecond=0
                 )
 
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
                     _LOGGER.debug(
-                        f"Skipping {metric_type} for {usage_date}: already processed (timestamp {local_start_date.timestamp()} <= {last_time})"
+                        f"Skipping {metric_type} for {local_start_date}: already processed (timestamp {local_start_date.timestamp()} <= {last_time})"
                     )
                     continue
 
@@ -534,16 +541,24 @@ class DropCountrUsageDataUpdateCoordinator(
         if not usage_response or not usage_response.usage_data:
             return
 
-        current_date = datetime.now().date()
-        cutoff_date = current_date - timedelta(days=60)  # Keep only last 60 days
+        current_datetime = datetime.now()
+        cutoff_datetime = current_datetime - timedelta(
+            days=7
+        )  # Keep only last 7 days for hourly data
 
-        # Collect new dates to add
-        new_dates = set()
+        # Collect new hour timestamps to add
+        new_hours = set()
         for usage_data in usage_response.usage_data:
-            usage_date = usage_data.start_date.date()
-            # Only track dates that are within our retention window
-            if cutoff_date <= usage_date <= current_date:
-                new_dates.add(usage_date)
+            usage_datetime = (
+                usage_data.start_date.replace(tzinfo=None)
+                if usage_data.start_date.tzinfo
+                else usage_data.start_date
+            )
+            # Round to hour for consistent tracking
+            usage_hour = usage_datetime.replace(minute=0, second=0, microsecond=0)
+            # Only track hours that are within our retention window
+            if cutoff_datetime <= usage_hour <= current_datetime:
+                new_hours.add(usage_hour)
 
         # Thread-safe update of historical state
         with self._state_lock:
@@ -555,45 +570,47 @@ class DropCountrUsageDataUpdateCoordinator(
 
             historical_state = self._historical_state[service_connection_id]
 
-            # Merge with existing dates and apply retention policy in one atomic operation
-            existing_dates = historical_state[LAST_SEEN_DATES_KEY]
-            historical_state[LAST_SEEN_DATES_KEY] = (existing_dates | new_dates) & {
-                date for date in (existing_dates | new_dates) if date > cutoff_date
+            # Merge with existing hours and apply retention policy in one atomic operation
+            existing_hours = historical_state[LAST_SEEN_DATES_KEY]
+            historical_state[LAST_SEEN_DATES_KEY] = (existing_hours | new_hours) & {
+                hour for hour in (existing_hours | new_hours) if hour > cutoff_datetime
             }
 
             # Update the last update timestamp
             historical_state[LAST_UPDATE_KEY] = datetime.now()
 
-            # Log memory usage periodically (every 10th update)
-            dates_count = len(historical_state[LAST_SEEN_DATES_KEY])
-            if dates_count > 0 and dates_count % 10 == 0:
+            # Log memory usage periodically (every 20th update due to more frequent hourly data)
+            hours_count = len(historical_state[LAST_SEEN_DATES_KEY])
+            if hours_count > 0 and hours_count % 20 == 0:
                 _LOGGER.debug(
-                    f"Historical state memory: service {service_connection_id} tracking {dates_count} dates"
+                    f"Historical state memory: service {service_connection_id} tracking {hours_count} hourly timestamps"
                 )
 
     def _cleanup_historical_state(self) -> None:
         """Periodic cleanup of historical state to prevent memory growth."""
-        cutoff_date = datetime.now().date() - timedelta(days=60)
+        cutoff_datetime = datetime.now() - timedelta(
+            days=7
+        )  # Keep only last 7 days for hourly data
         services_cleaned = 0
-        dates_removed = 0
+        hours_removed = 0
 
         with self._state_lock:
             for _service_id, state in self._historical_state.items():
                 if LAST_SEEN_DATES_KEY in state:
                     original_count = len(state[LAST_SEEN_DATES_KEY])
                     state[LAST_SEEN_DATES_KEY] = {
-                        date
-                        for date in state[LAST_SEEN_DATES_KEY]
-                        if date > cutoff_date
+                        hour
+                        for hour in state[LAST_SEEN_DATES_KEY]
+                        if hour > cutoff_datetime
                     }
                     removed = original_count - len(state[LAST_SEEN_DATES_KEY])
                     if removed > 0:
                         services_cleaned += 1
-                        dates_removed += removed
+                        hours_removed += removed
 
         if services_cleaned > 0:
             _LOGGER.debug(
-                f"Historical state cleanup: removed {dates_removed} old dates from {services_cleaned} services"
+                f"Historical state cleanup: removed {hours_removed} old hourly timestamps from {services_cleaned} services"
             )
 
     async def _process_service_connection(
@@ -689,8 +706,8 @@ class DropCountrUsageDataUpdateCoordinator(
 
             elapsed = time.time() - start_time
             _LOGGER.info(
-                f"Update cycle completed: {processed_count}/{len(service_connections)} services, "
-                f"{total_usage_records} usage records, {historical_count} historical points inserted, "
+                f"Hourly update cycle completed: {processed_count}/{len(service_connections)} services, "
+                f"{total_usage_records} hourly usage records, {historical_count} historical hourly points inserted, "
                 f"{elapsed:.2f}s total (connections: {conn_elapsed:.2f}s, processing: {processing_elapsed:.2f}s)"
             )
         except Exception as ex:

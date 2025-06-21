@@ -17,8 +17,9 @@ PLATFORMS = [
 DEFAULT_NAME = "DropCountr Sensor"
 
 # DropCountr API - reasonable polling intervals
-# Usage data typically updates once daily, so check once per day
-USAGE_SCAN_INTERVAL = timedelta(days=1)
+# For hourly statistics, we can poll more frequently but still reasonable
+# Check every 4 hours to capture new hourly data without overwhelming the API
+USAGE_SCAN_INTERVAL = timedelta(hours=4)
 # Service connections rarely change, so check once per day
 SERVICE_CONNECTION_SCAN_INTERVAL = timedelta(days=1)
 
