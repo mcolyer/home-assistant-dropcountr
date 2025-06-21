@@ -39,17 +39,17 @@ def create_usage_data():
     """Create usage data for testing."""
 
     def _create_usage_data(
-        days_ago: int, total_gallons: float = 100.0, irrigation_gallons: float = 25.0
+        hours_ago: int, total_gallons: float = 5.0, irrigation_gallons: float = 1.0
     ):
-        base_date = datetime.now() - timedelta(days=days_ago)
-        start_date = base_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = base_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        base_datetime = datetime.now() - timedelta(hours=hours_ago)
+        start_date = base_datetime.replace(minute=0, second=0, microsecond=0)
+        end_date = start_date.replace(minute=59, second=59, microsecond=999999)
         during = f"{start_date.isoformat()}Z/{end_date.isoformat()}Z"
         return UsageData(
             during=during,
             total_gallons=total_gallons,
             irrigation_gallons=irrigation_gallons,
-            irrigation_events=2,
+            irrigation_events=1 if irrigation_gallons > 0 else 0,
             is_leaking=False,
         )
 
@@ -122,11 +122,11 @@ async def test_detect_new_historical_data_no_data(
 async def test_detect_new_historical_data_recent_data(
     usage_coordinator, create_usage_data, create_usage_response
 ):
-    """Test that recent data (within 1 day) is not considered historical."""
+    """Test that recent data (within 2 hours) is not considered historical."""
     service_id = 12345
 
-    # Create usage data from today (0 days ago)
-    recent_usage = create_usage_data(0)
+    # Create usage data from 1 hour ago (too recent)
+    recent_usage = create_usage_data(1)
     usage_response = create_usage_response([recent_usage])
 
     historical_data = usage_coordinator._detect_new_historical_data(
@@ -142,8 +142,8 @@ async def test_detect_new_historical_data_old_data_first_time(
     """Test detecting historical data for the first time."""
     service_id = 12345
 
-    # Create usage data from 3 days ago
-    old_usage = create_usage_data(3)
+    # Create usage data from 5 hours ago (historical)
+    old_usage = create_usage_data(5)
     usage_response = create_usage_response([old_usage])
 
     historical_data = usage_coordinator._detect_new_historical_data(
@@ -160,8 +160,8 @@ async def test_detect_new_historical_data_already_seen(
     """Test that already seen historical data is not detected again."""
     service_id = 12345
 
-    # Create usage data from 3 days ago
-    old_usage = create_usage_data(3)
+    # Create usage data from 5 hours ago
+    old_usage = create_usage_data(5)
     usage_response = create_usage_response([old_usage])
 
     # First detection - should find new data
@@ -186,8 +186,8 @@ async def test_detect_mixed_new_and_old_data(
     """Test detecting new historical data mixed with already seen data."""
     service_id = 12345
 
-    # First batch - 3 days ago
-    old_usage_1 = create_usage_data(3)
+    # First batch - 5 hours ago
+    old_usage_1 = create_usage_data(5)
     usage_response_1 = create_usage_response([old_usage_1])
 
     # Process first batch
@@ -195,7 +195,7 @@ async def test_detect_mixed_new_and_old_data(
     usage_coordinator._update_historical_state(service_id, usage_response_1)
 
     # Second batch - mix of old (seen) and new historical data
-    old_usage_2 = create_usage_data(4)  # New historical data
+    old_usage_2 = create_usage_data(7)  # New historical data (7 hours ago)
     usage_response_2 = create_usage_response([old_usage_1, old_usage_2])
 
     historical_data = usage_coordinator._detect_new_historical_data(
@@ -213,8 +213,8 @@ async def test_update_historical_state(
     service_id = 12345
 
     # Create usage data
-    usage_1 = create_usage_data(3)
-    usage_2 = create_usage_data(2)
+    usage_1 = create_usage_data(5)
+    usage_2 = create_usage_data(3)
     usage_response = create_usage_response([usage_1, usage_2])
 
     # Update state
@@ -230,12 +230,12 @@ async def test_update_historical_state(
 async def test_historical_state_cleanup(
     usage_coordinator, create_usage_data, create_usage_response
 ):
-    """Test that old dates are cleaned up from historical state."""
+    """Test that old hourly timestamps are cleaned up from historical state."""
     service_id = 12345
 
-    # Create usage data from 65 days ago (should be cleaned up)
-    old_usage = create_usage_data(65)
-    # Create recent usage data from 5 days ago (should be kept)
+    # Create usage data from 8 days ago (should be cleaned up - outside 7 day window)
+    old_usage = create_usage_data(8 * 24)  # 8 days * 24 hours
+    # Create recent usage data from 5 hours ago (should be kept)
     recent_usage = create_usage_data(5)
 
     usage_response = create_usage_response([old_usage, recent_usage])
@@ -243,12 +243,12 @@ async def test_historical_state_cleanup(
     # Update state
     usage_coordinator._update_historical_state(service_id, usage_response)
 
-    # Check that only recent data is kept (older than 60 days is cleaned up)
+    # Check that only recent data is kept (older than 7 days is cleaned up)
     state = usage_coordinator._get_historical_state(service_id)
 
     assert len(state[LAST_SEEN_DATES_KEY]) == 1
     # The recent usage should still be there, but old usage should be cleaned up
-    # We need to check based on the actual dates that were tracked
+    # We need to check based on the actual hourly timestamps that were tracked
 
 
 async def test_full_update_cycle_with_historical_data(
@@ -264,8 +264,8 @@ async def test_full_update_cycle_with_historical_data(
     mock_client.list_service_connections.return_value = [mock_service_connection]
 
     # Create usage response with historical data
-    historical_usage = create_usage_data(3, total_gallons=200.0)
-    recent_usage = create_usage_data(0, total_gallons=100.0)
+    historical_usage = create_usage_data(5, total_gallons=10.0)  # 5 hours ago
+    recent_usage = create_usage_data(1, total_gallons=5.0)  # 1 hour ago (too recent)
 
     usage_response = create_usage_response([historical_usage, recent_usage])
     mock_client.get_usage.return_value = usage_response
@@ -293,12 +293,14 @@ async def test_full_update_cycle_with_historical_data(
         call_args = mock_insert_stats.call_args
         assert call_args[0][0] == mock_service_connection.id  # service_connection_id
         historical_data_arg = call_args[0][1]  # historical_data list
-        assert len(historical_data_arg) == 1  # Only historical data (3 days old)
+        assert len(historical_data_arg) == 1  # Only historical data (5 hours old)
         assert historical_data_arg[0] == historical_usage
 
     # Check that historical state was updated
     state = coordinator._get_historical_state(mock_service_connection.id)
-    assert len(state[LAST_SEEN_DATES_KEY]) == 2  # Both dates should be tracked
+    assert (
+        len(state[LAST_SEEN_DATES_KEY]) == 2
+    )  # Both hourly timestamps should be tracked
 
 
 async def test_no_duplicate_events_on_subsequent_updates(
@@ -314,7 +316,7 @@ async def test_no_duplicate_events_on_subsequent_updates(
     mock_client.list_service_connections.return_value = [mock_service_connection]
 
     # Create usage response with historical data
-    historical_usage = create_usage_data(3, total_gallons=200.0)
+    historical_usage = create_usage_data(5, total_gallons=10.0)  # 5 hours ago
     usage_response = create_usage_response([historical_usage])
     mock_client.get_usage.return_value = usage_response
 
