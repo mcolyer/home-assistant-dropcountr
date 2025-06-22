@@ -368,25 +368,25 @@ class DropCountrUsageDataUpdateCoordinator(
 
         stats_start = time.time()
         _LOGGER.info(
-            f"Inserting hourly statistics for {len(historical_data)} historical data points (service {service_connection_id})"
+            f"Inserting statistics for {len(historical_data)} historical data points (service {service_connection_id})"
         )
 
         # Create statistic IDs and metadata
         id_prefix = f"dropcountr_{service_connection_id}"
         statistics_config = {
             "total_gallons": {
-                "id": f"{DOMAIN}:{id_prefix}_total_gallons_hourly",
-                "name": f"DropCountr {service_connection.name} Total Water Usage (Hourly)",
+                "id": f"{DOMAIN}:{id_prefix}_total_gallons",
+                "name": f"DropCountr {service_connection.name} Total Water Usage",
                 "unit": UnitOfVolume.GALLONS,
             },
             "irrigation_gallons": {
-                "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons_hourly",
-                "name": f"DropCountr {service_connection.name} Irrigation Water Usage (Hourly)",
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons",
+                "name": f"DropCountr {service_connection.name} Irrigation Water Usage",
                 "unit": UnitOfVolume.GALLONS,
             },
             "irrigation_events": {
-                "id": f"{DOMAIN}:{id_prefix}_irrigation_events_hourly",
-                "name": f"DropCountr {service_connection.name} Irrigation Events (Hourly)",
+                "id": f"{DOMAIN}:{id_prefix}_irrigation_events",
+                "name": f"DropCountr {service_connection.name} Irrigation Events",
                 "unit": None,
             },
         }
