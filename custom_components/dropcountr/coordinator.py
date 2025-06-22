@@ -346,11 +346,11 @@ class DropCountrUsageDataUpdateCoordinator(
         service_connection_id: int,
         historical_data: list[UsageData],
         service_connection: ServiceConnection,
-    ) -> None:
+    ) -> int:
         """Insert historical usage data as external statistics."""
         if not historical_data:
             _LOGGER.debug("No historical data to insert")
-            return
+            return 0
 
         # Check if recorder is available
         try:
@@ -359,17 +359,20 @@ class DropCountrUsageDataUpdateCoordinator(
                 _LOGGER.warning(
                     "Recorder instance not available, skipping statistics insertion"
                 )
-                return
+                return 0
         except Exception as ex:
             _LOGGER.warning(
                 f"Recorder not available: {ex}, skipping statistics insertion"
             )
-            return
+            return 0
 
         stats_start = time.time()
         _LOGGER.info(
             f"Inserting statistics for {len(historical_data)} historical data points (service {service_connection_id})"
         )
+
+        # Track actual inserted statistics count
+        total_inserted_count = 0
 
         # Create statistic IDs and metadata
         id_prefix = f"dropcountr_{service_connection_id}"
@@ -522,6 +525,7 @@ class DropCountrUsageDataUpdateCoordinator(
                     _LOGGER.debug(
                         f"Successfully inserted {len(statistics)} {metric_type} statistics"
                     )
+                    total_inserted_count += len(statistics)
                 except Exception as ex:
                     _LOGGER.error(
                         f"Failed to insert {metric_type} statistics: {ex}",
@@ -531,8 +535,10 @@ class DropCountrUsageDataUpdateCoordinator(
 
         stats_elapsed = time.time() - stats_start
         _LOGGER.debug(
-            f"Statistics insertion completed in {stats_elapsed:.3f}s for service {service_connection_id}"
+            f"Statistics insertion completed in {stats_elapsed:.3f}s for service {service_connection_id} (inserted {total_inserted_count} total statistics)"
         )
+        
+        return total_inserted_count
 
     def _update_historical_state(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -628,16 +634,17 @@ class DropCountrUsageDataUpdateCoordinator(
                 service_connection.id, usage_response
             )
             if historical_data:
-                historical_count = len(historical_data)
                 try:
-                    await self._insert_historical_statistics(
+                    actual_inserted_count = await self._insert_historical_statistics(
                         service_connection.id, historical_data, service_connection
                     )
+                    historical_count = actual_inserted_count
                 except Exception as ex:
                     _LOGGER.error(
                         f"Failed to insert historical statistics for service {service_connection.id}: {ex}. Continuing with normal operation.",
                         exc_info=True,
                     )
+                    historical_count = 0
 
             # Update historical state tracking
             self._update_historical_state(service_connection.id, usage_response)
