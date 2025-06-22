@@ -472,9 +472,6 @@ class DropCountrUsageDataUpdateCoordinator(
 
                 # Skip data that's already been processed
                 if local_start_date.timestamp() <= last_time:
-                    _LOGGER.debug(
-                        f"Skipping {metric_type} for {local_start_date}: already processed (timestamp {local_start_date.timestamp()} <= {last_time})"
-                    )
                     continue
 
                 # Get the appropriate value for this metric
