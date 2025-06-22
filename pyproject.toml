@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-dropcountr"
-version = "0.1.6"
+version = "0.1.7"
 description = "Home Assistant integration for DropCountr water monitoring"
 authors = [
     {name = "Matt Colyer", email = "matt@colyer.name"}
@@ -9,7 +9,7 @@ requires-python = ">= 3.13.2"
 dependencies = [
     "async-timeout>4.0.3",
     "homeassistant==2025.6.1",
-    "pydropcountr==0.1.2",
+    "pydropcountr==1.0.0",
 ]
 
 [project.optional-dependencies]

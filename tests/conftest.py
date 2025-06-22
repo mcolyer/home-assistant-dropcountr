@@ -40,6 +40,30 @@ def bypass_get_data_fixture():
         api_id=MOCK_SERVICE_CONNECTION["api_id"],
     )
 
+    # Create a mock class that has a session attribute
+    class MockDropCountrClient:
+        def __init__(self, timezone=None):
+            self.session = None
+            self.timezone = timezone
+
+        def login(self, username, password):
+            return True
+
+        def is_logged_in(self):
+            return True
+
+        def list_service_connections(self):
+            return [mock_service_connection]
+
+        def get_usage(self, service_connection_id, start_date, end_date, period="day"):
+            return mock_usage_response
+
+        def get_service_connection(self, service_connection_id):
+            return mock_service_connection
+
+        def logout(self):
+            return None
+
     # Create mock usage data
     mock_usage_data = [
         UsageData(
@@ -61,20 +85,7 @@ def bypass_get_data_fixture():
     )
 
     with (
-        patch("pydropcountr.DropCountrClient.login", return_value=True),
-        patch("pydropcountr.DropCountrClient.is_logged_in", return_value=True),
-        patch(
-            "pydropcountr.DropCountrClient.list_service_connections",
-            return_value=[mock_service_connection],
-        ),
-        patch(
-            "pydropcountr.DropCountrClient.get_usage", return_value=mock_usage_response
-        ),
-        patch(
-            "pydropcountr.DropCountrClient.get_service_connection",
-            return_value=mock_service_connection,
-        ),
-        patch("pydropcountr.DropCountrClient.logout"),
+        patch("pydropcountr.DropCountrClient", MockDropCountrClient),
         # Mock statistics-related calls to avoid database dependencies in tests
         patch("homeassistant.components.recorder.get_instance"),
         patch(

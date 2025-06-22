@@ -1,6 +1,6 @@
 """Test timezone handling in statistics insertion."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import Mock
 from zoneinfo import ZoneInfo
 
@@ -121,27 +121,22 @@ async def test_timezone_handling_utc_midnight_dates(
             # Verify it's in the local timezone (America/Los_Angeles)
             assert str(fixed_local_date.tzinfo) == "America/Los_Angeles"
 
-        # Now test the problematic original approach to show it would fail before the fix
-        # (This demonstrates what the test would have caught before the fix)
+        # With PyDropCountr 1.0, timezone-aware datetimes are returned in local time
+        # This means the date shifting bug is fixed at the API level
         for usage_data in historical_usage_data:
             # This is what the old code did: dt_util.as_local(usage_data.start_date)
             original_local_date = dt_util.as_local(usage_data.start_date)
 
-            # In Pacific Time (UTC-8), UTC midnight 2025-05-06 00:00:00+00:00 becomes:
-            # 2025-05-05 16:00:00-08:00 (previous day!)
-            # This is exactly the bug that was happening
-
-            # The original approach shifts to previous day in negative UTC offset timezones
+            # With PyDropCountr 1.0, the start_date is already timezone-aware in local time
+            # So dt_util.as_local() should not shift the date anymore
             if str(original_local_date.tzinfo) == "America/Los_Angeles":
-                # This would fail before our fix - the date gets shifted
-                expected_shifted_date = usage_data.start_date.date() - timedelta(days=1)
-                assert original_local_date.date() == expected_shifted_date, (
-                    f"Original approach shifts date: {usage_data.start_date.date()} -> {original_local_date.date()}"
+                # With PyDropCountr 1.0, the date should be preserved
+                assert original_local_date.date() == usage_data.start_date.date(), (
+                    f"PyDropCountr 1.0 preserves date: {usage_data.start_date.date()} -> {original_local_date.date()}"
                 )
 
-                # And the time is not midnight but late afternoon/evening
-                # Hour depends on daylight saving time (16 in standard time, 17 in daylight time)
-                assert original_local_date.hour in [16, 17]  # 4-5 PM in Pacific Time
+                # The time should remain midnight in local time
+                assert original_local_date.hour == 0  # Midnight in Pacific Time
 
     finally:
         # Restore original timezone

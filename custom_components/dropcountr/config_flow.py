@@ -26,7 +26,8 @@ DATA_SCHEMA = vol.Schema(
 
 def _validate_input(hass: HomeAssistant, data: dict[str, Any]) -> DropCountrClient:
     """Validate in the executor."""
-    client = DropCountrClient()
+    # Use Home Assistant's configured timezone for PyDropCountr 1.0
+    client = DropCountrClient(timezone=hass.config.time_zone)
     if not client.login(data[CONF_USERNAME], data[CONF_PASSWORD]):
         raise InvalidAuth("Login failed")
 

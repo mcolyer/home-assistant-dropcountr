@@ -73,7 +73,8 @@ def _setup_entry(hass: HomeAssistant, entry: DropCountrConfigEntry) -> DropCount
     password = config[CONF_PASSWORD]
 
     try:
-        client = DropCountrClient()
+        # Use Home Assistant's configured timezone for PyDropCountr 1.0
+        client = DropCountrClient(timezone=hass.config.time_zone)
         if not client.login(username, password):
             _raise_auth_failed("Login failed")
         elif not client.is_logged_in():
