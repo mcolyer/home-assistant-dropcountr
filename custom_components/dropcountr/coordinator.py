@@ -534,7 +534,7 @@ class DropCountrUsageDataUpdateCoordinator(
         _LOGGER.debug(
             f"Statistics insertion completed in {stats_elapsed:.3f}s for service {service_connection_id} (inserted {total_inserted_count} total statistics)"
         )
-        
+
         return total_inserted_count
 
     def _update_historical_state(
