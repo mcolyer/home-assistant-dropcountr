@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Hourly External Statistics**: Switched from daily to hourly data collection for more granular water usage analytics
+- More frequent polling (every 4 hours) to capture new hourly data timely
+- Enhanced leak detection and irrigation monitoring with hourly granularity
+
+### Changed
+- **Statistics Collection**: Changed from daily rollups to hourly data points for external statistics
+- **Data Retention**: Reduced from 60-day to 7-day retention window for hourly timestamps (168 hours max per service)
+- **API Data Fetching**: Modified coordinator to request hourly data (`period="hour"`) instead of daily
+- **Historical Data Logic**: Updated to consider data historical after 2+ hours instead of 1+ days
+- **Polling Frequency**: Increased from daily to every 4 hours for timely hourly data capture
+
+### Technical Improvements
+- Optimized data volume management with 7-day hourly window (~168 data points per service)
+- Enhanced memory management with automatic cleanup of hourly timestamps older than 7 days
+- Maintained thread safety and performance optimizations for hourly data processing
+- Uses existing statistic IDs for seamless transition from daily to hourly data
+- Updated comprehensive test suite to validate hourly data collection and processing
+
 ## [0.1.6] - 2025-06-20
 
 ### Fixed
