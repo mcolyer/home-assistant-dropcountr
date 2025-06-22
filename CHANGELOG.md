@@ -7,19 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2025-01-03
+
+### Changed
+- **BREAKING**: Updated to PyDropCountr 1.0.0 with timezone-aware datetime handling
+- **Timezone Support**: DropCountr client now uses Home Assistant's configured timezone for proper local time handling
+- **API Compatibility**: All datetime objects from PyDropCountr are now timezone-aware in local time instead of incorrectly parsed as UTC
+
 ### Added
 - **Hourly External Statistics**: Switched from daily to hourly data collection for more granular water usage analytics
 - More frequent polling (every 4 hours) to capture new hourly data timely
 - Enhanced leak detection and irrigation monitoring with hourly granularity
 
-### Changed
+### Technical Improvements
 - **Statistics Collection**: Changed from daily rollups to hourly data points for external statistics
 - **Data Retention**: Reduced from 60-day to 7-day retention window for hourly timestamps (168 hours max per service)
 - **API Data Fetching**: Modified coordinator to request hourly data (`period="hour"`) instead of daily
 - **Historical Data Logic**: Updated to consider data historical after 2+ hours instead of 1+ days
 - **Polling Frequency**: Increased from daily to every 4 hours for timely hourly data capture
-
-### Technical Improvements
 - Optimized data volume management with 7-day hourly window (~168 data points per service)
 - Enhanced memory management with automatic cleanup of hourly timestamps older than 7 days
 - Maintained thread safety and performance optimizations for hourly data processing

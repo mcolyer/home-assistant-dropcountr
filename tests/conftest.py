@@ -1,6 +1,6 @@
 """Global fixtures for DropCountr integration tests."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from pydropcountr import ServiceConnection, UsageData, UsageResponse
 import pytest
@@ -60,7 +60,18 @@ def bypass_get_data_fixture():
         consumed_via_id="https://dropcountr.com/api/service_connections/12345",
     )
 
+    # Create a mock session object
+    mock_session = Mock()
+    mock_session.cookies.clear = Mock()
+
+    def mock_init(self, timezone=None):
+        self.session = mock_session
+        self.timezone = timezone
+
     with (
+        # Mock the constructor to accept timezone parameter and set session
+        patch("pydropcountr.DropCountrClient.__init__", mock_init),
+        # Mock all the methods individually
         patch("pydropcountr.DropCountrClient.login", return_value=True),
         patch("pydropcountr.DropCountrClient.is_logged_in", return_value=True),
         patch(
@@ -68,13 +79,14 @@ def bypass_get_data_fixture():
             return_value=[mock_service_connection],
         ),
         patch(
-            "pydropcountr.DropCountrClient.get_usage", return_value=mock_usage_response
+            "pydropcountr.DropCountrClient.get_usage",
+            return_value=mock_usage_response,
         ),
         patch(
             "pydropcountr.DropCountrClient.get_service_connection",
             return_value=mock_service_connection,
         ),
-        patch("pydropcountr.DropCountrClient.logout"),
+        patch("pydropcountr.DropCountrClient.logout", return_value=None),
         # Mock statistics-related calls to avoid database dependencies in tests
         patch("homeassistant.components.recorder.get_instance"),
         patch(
