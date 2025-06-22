@@ -40,6 +40,26 @@ def bypass_get_data_fixture():
         api_id=MOCK_SERVICE_CONNECTION["api_id"],
     )
 
+    # Create mock usage data
+    mock_usage_data = [
+        UsageData(
+            during=data["during"],
+            total_gallons=data["total_gallons"],
+            irrigation_gallons=data["irrigation_gallons"],
+            irrigation_events=data["irrigation_events"],
+            is_leaking=data["is_leaking"],
+        )
+        for data in MOCK_USAGE_DATA
+    ]
+
+    # Create mock usage response
+    mock_usage_response = UsageResponse(
+        usage_data=mock_usage_data,
+        total_items=len(mock_usage_data),
+        api_id="https://dropcountr.com/api/service_connections/12345/usage",
+        consumed_via_id="https://dropcountr.com/api/service_connections/12345",
+    )
+
     # Create a mock class that has a session attribute
     class MockDropCountrClient:
         def __init__(self, timezone=None):
@@ -64,28 +84,11 @@ def bypass_get_data_fixture():
         def logout(self):
             return None
 
-    # Create mock usage data
-    mock_usage_data = [
-        UsageData(
-            during=data["during"],
-            total_gallons=data["total_gallons"],
-            irrigation_gallons=data["irrigation_gallons"],
-            irrigation_events=data["irrigation_events"],
-            is_leaking=data["is_leaking"],
-        )
-        for data in MOCK_USAGE_DATA
-    ]
-
-    # Create mock usage response
-    mock_usage_response = UsageResponse(
-        usage_data=mock_usage_data,
-        total_items=len(mock_usage_data),
-        api_id="https://dropcountr.com/api/service_connections/12345/usage",
-        consumed_via_id="https://dropcountr.com/api/service_connections/12345",
-    )
-
     with (
         patch("pydropcountr.DropCountrClient", MockDropCountrClient),
+        patch("custom_components.dropcountr.__init__.DropCountrClient", MockDropCountrClient),
+        patch("custom_components.dropcountr.config_flow.DropCountrClient", MockDropCountrClient),
+        patch("custom_components.dropcountr.coordinator.DropCountrClient", MockDropCountrClient),
         # Mock statistics-related calls to avoid database dependencies in tests
         patch("homeassistant.components.recorder.get_instance"),
         patch(
