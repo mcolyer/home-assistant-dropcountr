@@ -408,7 +408,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
                 continue
 
-            # Get the last existing statistic to determine starting point for sums
+            # Get the last existing statistic to determine what data we've already processed
             try:
                 last_stat = await get_instance(self.hass).async_add_executor_job(
                     get_last_statistics, self.hass, 1, statistic_id, True, set()
@@ -418,8 +418,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 last_stat = {}
 
             if last_stat:
-                # Continue from where we left off
-                existing_sum = last_stat[statistic_id][0].get("sum", 0.0)
+                # Find the last processed timestamp to avoid duplicates
                 last_time = last_stat[statistic_id][0]["start"]
 
                 # Convert last_time to timestamp for comparison
@@ -434,11 +433,10 @@ class DropCountrUsageDataUpdateCoordinator(
                         last_time = last_time.timestamp()
 
                 _LOGGER.debug(
-                    f"Continuing {metric_type} statistics from last processed timestamp: {last_time} (sum: {existing_sum})"
+                    f"Continuing {metric_type} statistics from last processed timestamp: {last_time}"
                 )
             else:
                 # Starting fresh - no existing statistics
-                existing_sum = 0.0
                 last_time = 0
                 _LOGGER.debug(
                     f"Starting fresh {metric_type} statistics for {statistic_id}"
@@ -456,7 +454,6 @@ class DropCountrUsageDataUpdateCoordinator(
 
             # Create statistics data
             statistics: list[StatisticData] = []
-            current_sum = existing_sum
 
             for usage_data in historical_data:
                 # For hourly data, preserve the actual hour from PyDropCountr
@@ -484,7 +481,9 @@ class DropCountrUsageDataUpdateCoordinator(
                 else:
                     continue
 
-                current_sum += value
+                # For water consumption, each value represents consumption for that time period,
+                # not a cumulative total. Use the value directly as both state and sum.
+                current_sum = value
 
                 # Create StatisticData dictionary (TypedDict)
                 stat_data: StatisticData = {
