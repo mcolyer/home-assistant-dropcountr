@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-06-22
+
+### Added
+- **Stable Release**: First stable release of the DropCountr Home Assistant integration
+- Production-ready water monitoring with comprehensive feature set
+- Mature codebase with extensive testing and documentation
+
+### Changed
+- **API Stability**: Committed to stable API and configuration compatibility
+- **Semantic Versioning**: Following semver for future releases with breaking changes only in major versions
+
 ## [0.1.7] - 2025-01-03
 
 ### Changed
