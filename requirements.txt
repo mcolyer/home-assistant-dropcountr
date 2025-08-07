@@ -1,6 +1,6 @@
 colorlog==6.9.0
 homeassistant==2025.7.4
 pip>=21.3.1
-pydropcountr==0.1.2
+pydropcountr==1.0.0
 pytest-homeassistant-custom-component
 ruff==0.12.7
