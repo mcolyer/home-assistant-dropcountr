@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-08-07
+
+### Changed
+- Updated dependencies through Dependabot automation
+- Upgraded GitHub Actions workflow dependencies for improved security
+- Updated development dependencies including ruff linter and Home Assistant core
+
+### Fixed
+- Fixed negative water statistics handling to prevent data corruption in Home Assistant analytics
+- Improved statistics data validation to ensure only positive water usage values are recorded
+- Enhanced error handling for edge cases in water usage data processing
+
+### Technical Improvements
+- Better data integrity checks for water usage statistics
+- Improved handling of anomalous or corrected water readings from DropCountr API
+- Enhanced debugging capabilities for statistics processing
+
 ## [1.0.0] - 2025-06-22
 
 ### Added
