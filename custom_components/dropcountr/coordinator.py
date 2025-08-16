@@ -389,27 +389,37 @@ class DropCountrUsageDataUpdateCoordinator(
                 _LOGGER.error(f"Failed to get last statistics for {statistic_id}: {ex}")
                 last_stat = {}
 
-            if last_stat:
+            last_time = 0
+            running_sum = 0.0
+            
+            if last_stat and statistic_id in last_stat:
+                last_entry = last_stat[statistic_id][0]
+                
                 # Find the last processed timestamp to avoid duplicates
-                last_time = last_stat[statistic_id][0]["start"]
-
+                last_time_raw = last_entry["start"]
+                
                 # Convert last_time to timestamp for comparison
-                if not isinstance(last_time, (int, float)):
+                if not isinstance(last_time_raw, (int, float)):
                     # Convert datetime to timestamp
-                    if hasattr(last_time, "timestamp"):
-                        last_time = last_time.timestamp()
+                    if hasattr(last_time_raw, "timestamp"):
+                        last_time = last_time_raw.timestamp()
                     else:
                         # Fallback for other datetime formats
-                        if last_time.tzinfo is None:
-                            last_time = last_time.replace(tzinfo=UTC)
-                        last_time = last_time.timestamp()
+                        if last_time_raw.tzinfo is None:
+                            last_time_raw = last_time_raw.replace(tzinfo=UTC)
+                        last_time = last_time_raw.timestamp()
+                else:
+                    last_time = last_time_raw
+                
+                # Get the last cumulative sum to continue from
+                if "sum" in last_entry and last_entry["sum"] is not None:
+                    running_sum = float(last_entry["sum"])
 
                 _LOGGER.debug(
-                    f"Continuing {metric_type} statistics from last processed timestamp: {last_time}"
+                    f"Continuing {metric_type} statistics from timestamp: {last_time}, cumulative sum: {running_sum}"
                 )
             else:
                 # Starting fresh - no existing statistics
-                last_time = 0
                 _LOGGER.debug(
                     f"Starting fresh {metric_type} statistics for {statistic_id}"
                 )
@@ -417,7 +427,7 @@ class DropCountrUsageDataUpdateCoordinator(
             # Create metadata
             metadata = StatisticMetaData(
                 mean_type=StatisticMeanType.NONE,
-                has_sum=False,
+                has_sum=True,
                 name=config["name"],
                 source=DOMAIN,
                 statistic_id=statistic_id,
@@ -453,13 +463,23 @@ class DropCountrUsageDataUpdateCoordinator(
                 else:
                     continue
 
-                # For water consumption, each value represents consumption for that time period.
-                # Only provide state (period consumption) - let Home Assistant handle cumulative totals.
+                # Skip negative consumption values (meter corrections, resets, etc.)
+                if value < 0:
+                    _LOGGER.warning(
+                        f"Skipping negative {metric_type} value: {value} at {local_start_date}"
+                    )
+                    continue
+
+                # Add period consumption to running cumulative total
+                running_sum += value
 
                 # Create StatisticData dictionary (TypedDict)
+                # state = consumption for this period
+                # sum = cumulative total up to this point
                 stat_data: StatisticData = {
                     "start": local_start_date,
                     "state": value,
+                    "sum": running_sum,
                 }
 
                 statistics.append(stat_data)
