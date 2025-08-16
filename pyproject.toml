@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-dropcountr"
-version = "1.1.2"
+version = "1.1.3"
 description = "Home Assistant integration for DropCountr water monitoring"
 authors = [
     {name = "Matt Colyer", email = "matt@colyer.name"}

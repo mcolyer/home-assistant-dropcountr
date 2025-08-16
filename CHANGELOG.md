@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2025-08-16
+
+### Fixed
+- **CRITICAL**: Properly implemented cumulative sum calculation for statistics
+- Fixed `has_sum=True` with correct monotonically increasing cumulative totals
+- Added logic to continue from last known cumulative sum from existing statistics database
+- Added validation to skip negative consumption values that could corrupt statistics
+- Ensured proper `state` (period consumption) and `sum` (cumulative total) fields in StatisticData
+
+### Technical Improvements
+- Implemented proper Home Assistant statistics pattern from official documentation
+- Added robust cumulative sum tracking that continues from database state
+- Enhanced data integrity by filtering out anomalous negative consumption values
+- Improved compatibility with Home Assistant energy dashboard cumulative total expectations
+
 ## [1.1.2] - 2025-08-16
 
 ### Changed
