@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "loggers": ["pydropcountr"],
   "requirements": ["pydropcountr==1.0.0"],
-  "version": "1.1.1"
+  "version": "1.1.2"
 }
