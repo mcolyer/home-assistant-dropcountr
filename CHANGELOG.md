@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2025-08-16
+
+### Fixed
+- **CRITICAL**: Fixed handling of no existing statistics case that was preventing historical data insertion
+- Added explicit check for empty statistics arrays to properly detect fresh installations
+- Ensured `last_time` is properly reset to 0 when no existing statistics are found
+- Fixed timestamp filtering that was incorrectly filtering out all historical data on first run
+
+### Technical Improvements
+- Enhanced statistics initialization logic for new integrations
+- Improved logging to distinguish between continuing from existing data vs starting fresh
+- Better edge case handling for statistics database state
+
 ## [1.1.3] - 2025-08-16
 
 ### Fixed
