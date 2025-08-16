@@ -392,7 +392,7 @@ class DropCountrUsageDataUpdateCoordinator(
             last_time = 0
             running_sum = 0.0
             
-            if last_stat and statistic_id in last_stat:
+            if last_stat and statistic_id in last_stat and len(last_stat[statistic_id]) > 0:
                 last_entry = last_stat[statistic_id][0]
                 
                 # Find the last processed timestamp to avoid duplicates
@@ -420,8 +420,10 @@ class DropCountrUsageDataUpdateCoordinator(
                 )
             else:
                 # Starting fresh - no existing statistics
+                last_time = 0  # Ensure we start from beginning
+                running_sum = 0.0
                 _LOGGER.debug(
-                    f"Starting fresh {metric_type} statistics for {statistic_id}"
+                    f"Starting fresh {metric_type} statistics for {statistic_id} (no existing data)"
                 )
 
             # Create metadata
