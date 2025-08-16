@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-08-16
+
+### Fixed
+- **CRITICAL**: Fixed negative water statistics corruption in Home Assistant energy dashboard
+- Removed problematic session-level batch tracking that caused duplicate/inconsistent statistics insertion
+- Fixed statistics deduplication to rely solely on timestamp-based filtering from get_last_statistics
+- Eliminated conflicting deduplication mechanisms that caused gaps and overlaps in water usage data
+
+### Technical Improvements
+- Simplified statistics insertion logic by removing redundant session tracking
+- Improved data integrity by using proper timestamp-based deduplication
+- Enhanced reliability of historical data processing for water consumption tracking
+
 ## [1.1.0] - 2025-08-07
 
 ### Changed
