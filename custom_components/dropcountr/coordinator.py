@@ -417,7 +417,7 @@ class DropCountrUsageDataUpdateCoordinator(
             # Create metadata
             metadata = StatisticMetaData(
                 mean_type=StatisticMeanType.NONE,
-                has_sum=True,
+                has_sum=False,
                 name=config["name"],
                 source=DOMAIN,
                 statistic_id=statistic_id,
@@ -453,15 +453,13 @@ class DropCountrUsageDataUpdateCoordinator(
                 else:
                     continue
 
-                # For water consumption, each value represents consumption for that time period,
-                # not a cumulative total. Use the value directly as both state and sum.
-                current_sum = value
+                # For water consumption, each value represents consumption for that time period.
+                # Only provide state (period consumption) - let Home Assistant handle cumulative totals.
 
                 # Create StatisticData dictionary (TypedDict)
                 stat_data: StatisticData = {
                     "start": local_start_date,
                     "state": value,
-                    "sum": current_sum,
                 }
 
                 statistics.append(stat_data)
