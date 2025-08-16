@@ -131,9 +131,7 @@ class DropCountrUsageDataUpdateCoordinator(
         self._cache_duration = timedelta(
             minutes=5
         )  # Cache service connections for 5 minutes
-        self._statistics_inserted_this_session: dict[
-            int, set[str]
-        ] = {}  # Track what we've inserted per service
+        # Removed session-level tracking - rely on timestamp-based deduplication instead
         self._cache_lock = threading.Lock()  # Thread-safe cache access
         self._state_lock = threading.Lock()  # Thread-safe shared state access
 
@@ -274,25 +272,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 }
             return self._historical_state[service_connection_id]
 
-    def _check_and_mark_statistics_inserted(
-        self, service_connection_id: int, insertion_key: str
-    ) -> bool:
-        """Thread-safe check and mark for statistics insertion tracking."""
-        with self._state_lock:
-            if service_connection_id not in self._statistics_inserted_this_session:
-                self._statistics_inserted_this_session[service_connection_id] = set()
-
-            if (
-                insertion_key
-                in self._statistics_inserted_this_session[service_connection_id]
-            ):
-                return True  # Already inserted
-
-            # Mark as inserted
-            self._statistics_inserted_this_session[service_connection_id].add(
-                insertion_key
-            )
-            return False  # Not previously inserted
+    # Removed _check_and_mark_statistics_inserted - using timestamp-based deduplication instead
 
     def _detect_new_historical_data(
         self, service_connection_id: int, usage_response: UsageResponse
@@ -398,15 +378,7 @@ class DropCountrUsageDataUpdateCoordinator(
         for metric_type, config in statistics_config.items():
             statistic_id = config["id"]
 
-            # Create a key to track this specific insertion and check if already processed
-            insertion_key = f"{metric_type}_{min(data.start_date for data in historical_data)}_{max(data.start_date for data in historical_data)}"
-            if self._check_and_mark_statistics_inserted(
-                service_connection_id, insertion_key
-            ):
-                _LOGGER.debug(
-                    f"Skipping {metric_type} statistics insertion for service {service_connection_id}: already inserted in this session"
-                )
-                continue
+            # Removed batch-level session tracking - using individual timestamp filtering instead
 
             # Get the last existing statistic to determine what data we've already processed
             try:
