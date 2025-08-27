@@ -39,6 +39,10 @@ KEY_USAGE_IRRIGATION_GALLONS = "irrigation_gallons"
 KEY_USAGE_IRRIGATION_EVENTS = "irrigation_events"
 KEY_USAGE_IS_LEAKING = "is_leaking"
 KEY_USAGE_DURING = "during"
+KEY_USAGE_TOTAL_COST = "total_cost"
+
+# Water cost calculation constants
+COST_PER_GALLON = 8.47 / 748  # $8.47 per 748 gallons
 
 # Historical data tracking keys
 HISTORICAL_DATA_KEY = "historical_data_state"
