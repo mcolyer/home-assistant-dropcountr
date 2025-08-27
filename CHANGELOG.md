@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-08-27
+
 ### Added
 - **Water Cost Tracking**: Automatically calculate and track water costs alongside usage statistics
   - Cost calculation: $8.47 per 748 gallons ($0.01132 per gallon)
