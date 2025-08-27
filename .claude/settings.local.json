@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scripts/lint:*)",
+      "Bash(git add:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir:*)",
+      "Bash(scripts/test:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(git checkout:*)",
+      "Bash(gh pr create:*)",
+      "Bash(git tag:*)",
+      "Bash(rg:*)"
+    ],
+    "deny": []
+  }
+}

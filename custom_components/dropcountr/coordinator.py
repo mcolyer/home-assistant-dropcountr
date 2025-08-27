@@ -22,12 +22,13 @@ from homeassistant.components.recorder.statistics import (
     get_last_statistics,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfVolume
+from homeassistant.const import CURRENCY_DOLLAR, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     _LOGGER,
+    COST_PER_GALLON,
     DOMAIN,
     LAST_SEEN_DATES_KEY,
     LAST_UPDATE_KEY,
@@ -372,6 +373,11 @@ class DropCountrUsageDataUpdateCoordinator(
                 "name": f"DropCountr {service_connection.name} Irrigation Events",
                 "unit": None,
             },
+            "total_cost": {
+                "id": f"{DOMAIN}:{id_prefix}_total_cost",
+                "name": f"DropCountr {service_connection.name} Total Water Cost",
+                "unit": CURRENCY_DOLLAR,
+            },
         }
 
         # Process each metric type
@@ -391,13 +397,17 @@ class DropCountrUsageDataUpdateCoordinator(
 
             last_time = 0
             running_sum = 0.0
-            
-            if last_stat and statistic_id in last_stat and len(last_stat[statistic_id]) > 0:
+
+            if (
+                last_stat
+                and statistic_id in last_stat
+                and len(last_stat[statistic_id]) > 0
+            ):
                 last_entry = last_stat[statistic_id][0]
-                
+
                 # Find the last processed timestamp to avoid duplicates
                 last_time_raw = last_entry["start"]
-                
+
                 # Convert last_time to timestamp for comparison
                 if not isinstance(last_time_raw, (int, float)):
                     # Convert datetime to timestamp
@@ -410,7 +420,7 @@ class DropCountrUsageDataUpdateCoordinator(
                         last_time = last_time_raw.timestamp()
                 else:
                     last_time = last_time_raw
-                
+
                 # Get the last cumulative sum to continue from
                 if "sum" in last_entry and last_entry["sum"] is not None:
                     running_sum = float(last_entry["sum"])
@@ -462,6 +472,8 @@ class DropCountrUsageDataUpdateCoordinator(
                     value = usage_data.irrigation_gallons
                 elif metric_type == "irrigation_events":
                     value = usage_data.irrigation_events
+                elif metric_type == "total_cost":
+                    value = round(usage_data.total_gallons * COST_PER_GALLON, 2)
                 else:
                     continue
 

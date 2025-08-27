@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Water Cost Tracking**: Automatically calculate and track water costs alongside usage statistics
+  - Cost calculation: $8.47 per 748 gallons ($0.01132 per gallon)
+  - Historical cost data integrated with Home Assistant's statistics system
+  - Cost statistics appear in HA analytics with proper dollar sign units
+  - Comprehensive test coverage for cost calculations and edge cases
+
 ## [1.1.4] - 2025-08-16
 
 ### Fixed
