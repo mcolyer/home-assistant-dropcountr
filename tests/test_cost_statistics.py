@@ -106,7 +106,9 @@ async def test_cost_calculation_in_statistics(
         "custom_components.dropcountr.coordinator.async_add_external_statistics",
         side_effect=capture_statistics,
     ):
-        with patch("custom_components.dropcountr.coordinator.get_instance") as mock_get_instance:
+        with patch(
+            "custom_components.dropcountr.coordinator.get_instance"
+        ) as mock_get_instance:
             mock_get_instance.return_value = hass
             with patch(
                 "custom_components.dropcountr.coordinator.get_last_statistics",
@@ -141,7 +143,7 @@ async def test_cost_calculation_in_statistics(
 
     expected_cost = round(test_gallons * COST_PER_GALLON, 2)
     actual_cost = cost_data_points[0]["state"]
-    
+
     assert actual_cost == expected_cost, (
         f"Expected cost {expected_cost}, got {actual_cost}"
     )
@@ -188,7 +190,9 @@ async def test_cost_calculation_with_multiple_data_points(
         "custom_components.dropcountr.coordinator.async_add_external_statistics",
         side_effect=capture_statistics,
     ):
-        with patch("custom_components.dropcountr.coordinator.get_instance") as mock_get_instance:
+        with patch(
+            "custom_components.dropcountr.coordinator.get_instance"
+        ) as mock_get_instance:
             mock_get_instance.return_value = hass
             with patch(
                 "custom_components.dropcountr.coordinator.get_last_statistics",
@@ -262,7 +266,9 @@ async def test_zero_gallons_zero_cost(
         "custom_components.dropcountr.coordinator.async_add_external_statistics",
         side_effect=capture_statistics,
     ):
-        with patch("custom_components.dropcountr.coordinator.get_instance") as mock_get_instance:
+        with patch(
+            "custom_components.dropcountr.coordinator.get_instance"
+        ) as mock_get_instance:
             mock_get_instance.return_value = hass
             with patch(
                 "custom_components.dropcountr.coordinator.get_last_statistics",
