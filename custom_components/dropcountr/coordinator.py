@@ -389,7 +389,7 @@ class DropCountrUsageDataUpdateCoordinator(
             # Get the last existing statistic to determine what data we've already processed
             try:
                 last_stat = await get_instance(self.hass).async_add_executor_job(
-                    get_last_statistics, self.hass, 1, statistic_id, True, set()
+                    get_last_statistics, self.hass, 1, statistic_id, True, {"sum"}
                 )
             except Exception as ex:
                 _LOGGER.error(f"Failed to get last statistics for {statistic_id}: {ex}")

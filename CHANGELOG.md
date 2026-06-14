@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-14
+
+### Fixed
+- **CRITICAL**: Fixed negative water consumption values appearing in Home Assistant statistics graphs
+  - `get_last_statistics` was called with an empty `types` set, so the returned row never contained a `sum` field
+  - As a result, `running_sum` reset to `0.0` on every poll instead of continuing from the last cumulative total
+  - The cumulative `sum` then dropped below prior values, which HA renders as large negative consumption bars
+  - Now requests the `{"sum"}` type so the cumulative total continues correctly across polls and restarts
+- Added regression test covering the statistics continuation path (previously untested)
+
 ## [1.2.0] - 2025-08-27
 
 ### Added
