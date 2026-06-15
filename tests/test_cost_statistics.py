@@ -1,6 +1,6 @@
 """Test water cost statistics functionality."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 from pydropcountr import ServiceConnection, UsageData, UsageResponse
@@ -290,3 +290,88 @@ async def test_zero_gallons_zero_cost(
     assert len(cost_data_points) == 1
     assert cost_data_points[0]["state"] == 0.0
     assert cost_data_points[0]["sum"] == 0.0
+
+
+async def test_running_sum_continues_from_existing_statistics(
+    hass, config_entry, mock_service_connection, create_usage_data
+):
+    """Regression: running_sum must continue from the last stored sum.
+
+    Previously get_last_statistics was called with types=set(), so the returned
+    row never contained a "sum" key and running_sum reset to 0.0 on every poll.
+    That produced a cumulative sum that dropped below the prior value, which
+    Home Assistant renders as large negative water-consumption bars.
+    """
+    # Create mock client
+    mock_client = Mock()
+    mock_client.list_service_connections.return_value = [mock_service_connection]
+
+    # New historical data, all newer than the existing statistic below
+    usage_data_list = [
+        create_usage_data(10, total_gallons=50.0),  # 10 hours ago
+        create_usage_data(8, total_gallons=75.0),  # 8 hours ago
+        create_usage_data(6, total_gallons=100.0),  # 6 hours ago
+    ]
+
+    coordinator = DropCountrUsageDataUpdateCoordinator(
+        hass=hass,
+        config_entry=config_entry,
+        client=mock_client,
+    )
+
+    inserted_statistics = []
+
+    def capture_statistics(hass_instance, metadata, stats):
+        inserted_statistics.append((metadata["statistic_id"], metadata, stats))
+
+    # Simulate an already-populated statistics series: a prior row that ends
+    # well before the new data, carrying a cumulative sum of 5000.0.
+    existing_sum = 5000.0
+    prior_start = datetime.now(UTC) - timedelta(days=2)
+
+    def fake_get_last_statistics(hass_, number, statistic_id, convert_units, types):
+        # Mirror Home Assistant: only return "sum" when it is requested.
+        row = {"start": prior_start.timestamp()}
+        if "sum" in types:
+            row["sum"] = existing_sum
+        return {statistic_id: [row]}
+
+    with patch(
+        "custom_components.dropcountr.coordinator.async_add_external_statistics",
+        side_effect=capture_statistics,
+    ):
+        with patch(
+            "custom_components.dropcountr.coordinator.get_instance"
+        ) as mock_get_instance:
+            mock_get_instance.return_value = hass
+            with patch(
+                "custom_components.dropcountr.coordinator.get_last_statistics",
+                side_effect=fake_get_last_statistics,
+            ):
+                await coordinator._insert_historical_statistics(
+                    mock_service_connection.id,
+                    usage_data_list,
+                    mock_service_connection,
+                )
+
+    # Inspect total_gallons cumulative sums
+    total_gallons_stats = next(
+        (s for s in inserted_statistics if s[0].endswith("_total_gallons")), None
+    )
+    assert total_gallons_stats is not None
+
+    data_points = total_gallons_stats[2]
+    assert len(data_points) == 3
+
+    sums = [point["sum"] for point in data_points]
+
+    # Sums must continue from the prior 5000.0, not reset to 0.0
+    assert sums == [
+        existing_sum + 50.0,
+        existing_sum + 50.0 + 75.0,
+        existing_sum + 50.0 + 75.0 + 100.0,
+    ]
+
+    # And the series must never decrease (no negative consumption bars).
+    assert sums[0] >= existing_sum
+    assert all(b >= a for a, b in zip(sums, sums[1:], strict=False))

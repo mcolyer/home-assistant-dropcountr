@@ -1,6 +1,6 @@
 [project]
 name = "home-assistant-dropcountr"
-version = "1.2.0"
+version = "1.2.3"
 description = "Home Assistant integration for DropCountr water monitoring"
 authors = [
     {name = "Matt Colyer", email = "matt@colyer.name"}
@@ -9,16 +9,16 @@ requires-python = ">= 3.13.2"
 dependencies = [
     "async-timeout>4.0.3",
     "homeassistant==2025.7.4",
-    "pydropcountr==1.0.0",
+    "pydropcountr==1.1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "colorlog",
-    "pytest>=8.3.0,<9.0.0",
+    "pytest>=8.3.0,<10.0.0",
     "pytest-cov>=5.0.0",
     "pytest-homeassistant-custom-component>=0.13.0",
-    "ruff==0.12.7",
+    "ruff==0.14.14",
     "uv>0.4.15",
 ]
 
