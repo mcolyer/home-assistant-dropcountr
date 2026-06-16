@@ -11,6 +11,7 @@ from custom_components.dropcountr.const import COST_PER_GALLON, DOMAIN
 from custom_components.dropcountr.coordinator import (
     DropCountrUsageDataUpdateCoordinator,
 )
+from homeassistant.const import VOLUME
 
 from .const import MOCK_CONFIG, MOCK_SERVICE_CONNECTION
 
@@ -122,6 +123,37 @@ async def test_cost_calculation_in_statistics(
 
     # Verify statistics were captured - 4 types including cost
     assert len(inserted_statistics) == 4
+
+    metadata_by_statistic_id = {
+        statistic_id: metadata for statistic_id, metadata, _stats in inserted_statistics
+    }
+    assert all(
+        "unit_class" in metadata for _id, metadata, _stats in inserted_statistics
+    )
+    assert (
+        metadata_by_statistic_id[
+            f"{DOMAIN}:dropcountr_{mock_service_connection.id}_total_gallons"
+        ]["unit_class"]
+        == VOLUME
+    )
+    assert (
+        metadata_by_statistic_id[
+            f"{DOMAIN}:dropcountr_{mock_service_connection.id}_irrigation_gallons"
+        ]["unit_class"]
+        == VOLUME
+    )
+    assert (
+        metadata_by_statistic_id[
+            f"{DOMAIN}:dropcountr_{mock_service_connection.id}_irrigation_events"
+        ]["unit_class"]
+        is None
+    )
+    assert (
+        metadata_by_statistic_id[
+            f"{DOMAIN}:dropcountr_{mock_service_connection.id}_total_cost"
+        ]["unit_class"]
+        is None
+    )
 
     # Find the cost statistics
     total_cost_stats = next(

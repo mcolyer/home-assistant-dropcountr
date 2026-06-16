@@ -22,7 +22,7 @@ from homeassistant.components.recorder.statistics import (
     get_last_statistics,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CURRENCY_DOLLAR, UnitOfVolume
+from homeassistant.const import CURRENCY_DOLLAR, VOLUME, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -362,21 +362,25 @@ class DropCountrUsageDataUpdateCoordinator(
                 "id": f"{DOMAIN}:{id_prefix}_total_gallons",
                 "name": f"DropCountr {service_connection.name} Total Water Usage",
                 "unit": UnitOfVolume.GALLONS,
+                "unit_class": VOLUME,
             },
             "irrigation_gallons": {
                 "id": f"{DOMAIN}:{id_prefix}_irrigation_gallons",
                 "name": f"DropCountr {service_connection.name} Irrigation Water Usage",
                 "unit": UnitOfVolume.GALLONS,
+                "unit_class": VOLUME,
             },
             "irrigation_events": {
                 "id": f"{DOMAIN}:{id_prefix}_irrigation_events",
                 "name": f"DropCountr {service_connection.name} Irrigation Events",
                 "unit": None,
+                "unit_class": None,
             },
             "total_cost": {
                 "id": f"{DOMAIN}:{id_prefix}_total_cost",
                 "name": f"DropCountr {service_connection.name} Total Water Cost",
                 "unit": CURRENCY_DOLLAR,
+                "unit_class": None,
             },
         }
 
@@ -443,6 +447,7 @@ class DropCountrUsageDataUpdateCoordinator(
                 name=config["name"],
                 source=DOMAIN,
                 statistic_id=statistic_id,
+                unit_class=config["unit_class"],
                 unit_of_measurement=config["unit"],
             )
 
