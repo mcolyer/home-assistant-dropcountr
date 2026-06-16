@@ -61,7 +61,7 @@ class DropCountrEntity[
             model="Water Meter",
             name=device_name,
             configuration_url="https://dropcountr.com",
-            suggested_area=service_connection_address.split(",")[0]
+            suggested_area=service_connection_address.split(",", maxsplit=1)[0]
             if service_connection_address
             else None,
         )
