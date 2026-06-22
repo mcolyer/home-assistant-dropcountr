@@ -1,6 +1,6 @@
 """Test historical data functionality."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 from pydropcountr import ServiceConnection, UsageData, UsageResponse
@@ -15,6 +15,7 @@ from custom_components.dropcountr.const import (
 from custom_components.dropcountr.coordinator import (
     DropCountrUsageDataUpdateCoordinator,
 )
+from custom_components.dropcountr.hourly import fetch_hourly_usage_in_daily_windows
 
 from .const import MOCK_CONFIG, MOCK_SERVICE_CONNECTION
 
@@ -341,3 +342,89 @@ async def test_no_duplicate_events_on_subsequent_updates(
         second_call_count = mock_insert_stats.call_count
 
         assert second_call_count == 1  # No additional calls
+
+
+def test_fetch_hourly_usage_splits_multi_day_ranges(create_usage_response):
+    """Test hourly usage is fetched in daily windows to avoid empty API results."""
+    service_id = 12345
+    start_dt = datetime(2026, 6, 13, 2, 0, tzinfo=UTC)
+    end_dt = datetime(2026, 6, 16, 2, 0, tzinfo=UTC)
+
+    usage_by_window = [
+        UsageData(
+            during="2026-06-13T02:00:00.000Z/2026-06-13T03:00:00.000Z",
+            total_gallons=1.0,
+            irrigation_gallons=0.0,
+            irrigation_events=0,
+            is_leaking=False,
+        ),
+        UsageData(
+            during="2026-06-14T02:00:00.000Z/2026-06-14T03:00:00.000Z",
+            total_gallons=2.0,
+            irrigation_gallons=0.0,
+            irrigation_events=0,
+            is_leaking=False,
+        ),
+        UsageData(
+            during="2026-06-15T02:00:00.000Z/2026-06-15T03:00:00.000Z",
+            total_gallons=3.0,
+            irrigation_gallons=0.0,
+            irrigation_events=0,
+            is_leaking=False,
+        ),
+    ]
+
+    mock_client = Mock()
+    mock_client.get_usage.side_effect = [
+        create_usage_response([usage_by_window[0]]),
+        create_usage_response([usage_by_window[1]]),
+        create_usage_response([usage_by_window[2]]),
+    ]
+
+    result = fetch_hourly_usage_in_daily_windows(
+        mock_client,
+        service_connection_id=service_id,
+        start_date=start_dt,
+        end_date=end_dt,
+    )
+
+    assert result is not None
+    assert result.usage_data == usage_by_window
+    assert result.total_items == 3
+    assert mock_client.get_usage.call_count == 3
+
+    for call in mock_client.get_usage.call_args_list:
+        assert call.kwargs["service_connection_id"] == service_id
+        assert call.kwargs["period"] == "hour"
+        window = call.kwargs["end_date"] - call.kwargs["start_date"]
+        assert window <= timedelta(days=1)
+
+
+def test_fetch_hourly_usage_single_day_uses_one_request(create_usage_response):
+    """Test single-day hourly ranges do not get split unnecessarily."""
+    service_id = 12345
+    start_dt = datetime(2026, 6, 13, 2, 0, tzinfo=UTC)
+    end_dt = datetime(2026, 6, 13, 8, 0, tzinfo=UTC)
+    usage = UsageData(
+        during="2026-06-13T02:00:00.000Z/2026-06-13T03:00:00.000Z",
+        total_gallons=1.0,
+        irrigation_gallons=0.0,
+        irrigation_events=0,
+        is_leaking=False,
+    )
+
+    mock_client = Mock()
+    mock_client.get_usage.return_value = create_usage_response([usage])
+
+    result = fetch_hourly_usage_in_daily_windows(
+        mock_client,
+        service_connection_id=service_id,
+        start_date=start_dt,
+        end_date=end_dt,
+    )
+
+    assert result is not None
+    assert result.usage_data == [usage]
+    mock_client.get_usage.assert_called_once()
+    assert mock_client.get_usage.call_args.kwargs["start_date"] == start_dt
+    assert mock_client.get_usage.call_args.kwargs["end_date"] == end_dt

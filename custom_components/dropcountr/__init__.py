@@ -27,6 +27,7 @@ from .coordinator import (
     DropCountrRuntimeData,
     DropCountrUsageDataUpdateCoordinator,
 )
+from .hourly import fetch_hourly_usage_in_daily_windows
 
 SERVICE_LIST_USAGE = "list_usage"
 SERVICE_GET_SERVICE_CONNECTION = "get_service_connection"
@@ -209,11 +210,11 @@ def setup_service(hass: HomeAssistant) -> None:
 
         try:
             usage_response = await hass.async_add_executor_job(
-                entry.runtime_data.client.get_usage,
+                fetch_hourly_usage_in_daily_windows,
+                entry.runtime_data.client,
                 service_connection_id,
                 start_dt,
                 end_dt,
-                "hour",  # Use hourly granularity
             )
             elapsed = time.time() - start_time
             data_count = (
