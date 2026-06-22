@@ -24,7 +24,7 @@ jobs:
           zip dropcountr.zip -r ./
 
       - name: "Create GitHub release and upload ZIP"
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3.0.1
         with:
           files: ${{ github.workspace }}/custom_components/dropcountr/dropcountr.zip
           generate_release_notes: true
