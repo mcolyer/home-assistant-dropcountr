@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-06-22
+
+### Fixed
+- Fixed hourly DropCountr data polling returning empty results by splitting multi-day hourly requests into daily API windows.
+- Applied the same hourly request splitting to the `dropcountr.get_hourly_usage` service.
+
 ## [1.2.3] - 2026-06-15
 
 ### Changed
