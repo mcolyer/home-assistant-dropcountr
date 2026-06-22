@@ -35,6 +35,7 @@ from .const import (
     SERVICE_CONNECTION_SCAN_INTERVAL,
     USAGE_SCAN_INTERVAL,
 )
+from .hourly import fetch_hourly_usage_in_daily_windows
 
 
 @dataclass
@@ -234,11 +235,11 @@ class DropCountrUsageDataUpdateCoordinator(
             )
 
             api_start = time.time()
-            result = self.client.get_usage(
+            result = fetch_hourly_usage_in_daily_windows(
+                self.client,
                 service_connection_id=service_connection_id,
                 start_date=start_date,
                 end_date=end_date,
-                period="hour",
             )
             api_elapsed = time.time() - api_start
             total_elapsed = time.time() - start_time
