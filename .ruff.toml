@@ -111,8 +111,6 @@ ignore = [
     "TRY400", # Use logging.exception instead of logging.error
     "UP006", # keep type annotation style as is
     "UP007", # keep type annotation style as is
-    # Ignored due to performance: https://github.com/charliermarsh/ruff/issues/2923
-    "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`
 ]
 
 [lint.flake8-import-conventions.extend-aliases]
