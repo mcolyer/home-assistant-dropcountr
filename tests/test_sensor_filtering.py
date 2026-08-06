@@ -1,7 +1,7 @@
 """Test sensor filtering for recent incomplete data."""
 
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from pydropcountr import UsageData, UsageResponse
 import pytest
@@ -17,8 +17,9 @@ from .const import MOCK_CONFIG, MOCK_SERVICE_CONNECTION
 
 
 @pytest.fixture
-def create_usage_data_with_dates():
-    """Create usage data for specific dates."""
+def create_usage_data_with_dates(freezer):
+    """Create usage data relative to a stable mid-month date."""
+    freezer.move_to("2025-08-15 12:00:00")
 
     def _create_usage_data_with_dates(
         date_offset_days: int,
@@ -189,21 +190,17 @@ async def test_weekly_total_sensor_not_affected(mock_coordinator_with_mixed_data
 
 async def test_monthly_total_sensor_not_affected(mock_coordinator_with_mixed_data):
     """Test that monthly_total sensor continues to work normally."""
-    # Mock _get_current_date to return a date in the same month as our test data
-    with patch("custom_components.dropcountr.sensor._get_current_date") as mock_date:
-        mock_date.return_value = datetime.now().date()
+    sensor = DropCountrSensor(
+        coordinator=mock_coordinator_with_mixed_data,
+        description=DROPCOUNTR_SENSORS[4],  # monthly_total
+        service_connection_id=MOCK_SERVICE_CONNECTION["id"],
+        service_connection_name=MOCK_SERVICE_CONNECTION["name"],
+        service_connection_address=MOCK_SERVICE_CONNECTION["address"],
+    )
 
-        sensor = DropCountrSensor(
-            coordinator=mock_coordinator_with_mixed_data,
-            description=DROPCOUNTR_SENSORS[4],  # monthly_total
-            service_connection_id=MOCK_SERVICE_CONNECTION["id"],
-            service_connection_name=MOCK_SERVICE_CONNECTION["name"],
-            service_connection_address=MOCK_SERVICE_CONNECTION["address"],
-        )
-
-        # Should aggregate all data for the current month (no filtering for monthly totals)
-        value = sensor.native_value
-        assert value == 650.0  # 300 + 200 + 100 + 50
+    # Should aggregate all data for the current month (no filtering for monthly totals)
+    value = sensor.native_value
+    assert value == 650.0  # 300 + 200 + 100 + 50
 
 
 async def test_sensor_with_zero_yesterday_data_returns_none(
