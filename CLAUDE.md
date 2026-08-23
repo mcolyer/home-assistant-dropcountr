@@ -221,6 +221,7 @@ with self._cache_lock:
     if self._cached_data is not None:
         return self._cached_data.copy()
 
+
 # Atomic check-and-set operation
 def _check_and_mark_processed(self, key: str) -> bool:
     with self._state_lock:
