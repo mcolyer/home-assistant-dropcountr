@@ -3,4 +3,4 @@ homeassistant==2026.2.3
 pip>=26.2.1
 pydropcountr==1.1.0
 pytest-homeassistant-custom-component
-ruff==0.16.4
+ruff==0.16.5
